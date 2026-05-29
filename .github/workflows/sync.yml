@@ -1,0 +1,32 @@
+name: Sync Fork
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get upstream
+        id: upstream
+        run: |
+          UPSTREAM=$(gh api repos/${{ github.repository }} --jq '.parent.full_name')
+          if [ "$UPSTREAM" == "null" ]; then
+            echo "不是 fork 仓库"
+            exit 1
+          fi
+          echo "upstream=$UPSTREAM" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+
+      - name: Sync
+        run: |
+          gh repo sync ${{ github.repository }} --source ${{ steps.upstream.outputs.upstream }} --force
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+          GITHUB_TOKEN: ${{ secrets.PAT }}
