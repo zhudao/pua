@@ -154,12 +154,21 @@ def command_tokens(command: str):
         return re.split(r'\s+', command)
 
 
+def looks_like_path(s: str) -> bool:
+    # A real path has a directory separator or a file-extension suffix; bare
+    # identifiers like the shell `eval` builtin do not, and must not be matched
+    # against (^|/)(evals?|tests?|spec|...)(/|$) as if they were paths.
+    if '/' in s or '\\' in s:
+        return True
+    return bool(re.search(r'\.[A-Za-z0-9]+$', s))
+
+
 def path_candidates(tokens):
     for token in tokens:
         if not token:
             continue
         stripped = token.strip("\"'`")
-        if stripped:
+        if stripped and looks_like_path(stripped):
             yield stripped
         # Pull paths embedded inside code strings, e.g. open("tests/fixtures.json", "w").
         for match in re.findall(r'[A-Za-z0-9_.@+~:-]+(?:/[A-Za-z0-9_.@+~:-]+)+', token.replace('\\', '/')):
