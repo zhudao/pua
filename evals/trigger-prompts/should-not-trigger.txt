@@ -3,7 +3,7 @@
 
 # Simple coding tasks (first attempt, no frustration)
 Help me write a function to sort an array
-Create a React component for a login form
+Create a React component for a profile card
 帮我写一个 Python 脚本读取 CSV 文件
 
 # Information queries

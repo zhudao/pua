@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PUA v2 Skill Triggering Test
+# PUA Skill Triggering Test
 # Tests whether the skill triggers on correct prompts and doesn't trigger on incorrect ones
 #
 # Usage: ./run-trigger-test.sh [--plugin-dir <path>]
@@ -13,11 +13,11 @@ PLUGIN_DIR="${1:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 RESULTS_DIR="/tmp/pua-evals/$(date +%s)"
 mkdir -p "$RESULTS_DIR"
 EVAL_PUA_CONFIG="$RESULTS_DIR/pua-config.json"
-printf '%s\n' '{"always_on":true,"feedback_frequency":0}' > "$EVAL_PUA_CONFIG"
+printf '%s\n' '{"always_on":false,"feedback_frequency":0}' > "$EVAL_PUA_CONFIG"
 EVAL_WORKSPACE="$RESULTS_DIR/workspace"
 mkdir -p "$EVAL_WORKSPACE"
 
-echo "=== PUA v2 Trigger Tests ==="
+echo "=== PUA Trigger Tests ==="
 echo "Plugin dir: $PLUGIN_DIR"
 echo "Results: $RESULTS_DIR"
 echo ""
@@ -33,7 +33,7 @@ test_prompt() {
 
     (
         cd "$EVAL_WORKSPACE"
-        PUA_CONFIG="$EVAL_PUA_CONFIG" run_with_timeout 120 claude -p "$prompt" \
+        PUA_CONFIG="$EVAL_PUA_CONFIG" PUA_FORCE_ON=1 run_with_timeout 120 claude -p "$prompt" \
             --plugin-dir "$PLUGIN_DIR" \
             --dangerously-skip-permissions \
             --max-turns 2 \
@@ -46,7 +46,7 @@ test_prompt() {
     if grep -q '"skill":"pua"' "$outfile" 2>/dev/null || \
        grep -q '"skill":"pua:pua"' "$outfile" 2>/dev/null; then
         triggered=true
-    elif [ "$should_trigger" = "yes" ] && grep -qE 'PUA Skill Context|User Frustration Signal|\[PUA ACTIVATED|PUA生效|3\.25|闭环|owner|颗粒度|抓手|底层逻辑' "$outfile" 2>/dev/null; then
+    elif [ "$should_trigger" = "yes" ] && grep -qE 'PUA Skill Context|User Frustration Signal|PUA生效|3\.25|闭环|owner|颗粒度|抓手|底层逻辑|置身钉外|证据链|没跑测试|换个方法|done-check|evidence' "$outfile" 2>/dev/null; then
         # Claude may apply PUA pressure from hook/context without an explicit Skill
         # tool event before max-turns. Count observable PUA behavior as triggered.
         triggered=true
@@ -72,6 +72,10 @@ test_prompt "你怎么又失败了？再试试" "yes" "frustration-zh"
 test_prompt "Try harder, stop giving up" "yes" "frustration-en"
 test_prompt "PUA模式 帮我修这个bug" "yes" "explicit-pua"
 test_prompt "你这个交付质量太差了" "yes" "quality-complaint"
+test_prompt "没跑测试别说完成" "yes" "done-without-test-zh"
+test_prompt "证据呢？数据在哪？" "yes" "evidence-request-zh"
+test_prompt "老板体感不是 oracle，给我一条置身钉外提醒" "yes" "ding-workplace-zh"
+test_prompt "Change approach, don't keep tweaking the same thing" "yes" "change-approach-en"
 
 echo ""
 echo "--- Should NOT Trigger ---"

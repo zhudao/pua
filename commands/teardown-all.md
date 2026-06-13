@@ -1,5 +1,5 @@
 ---
-description: "级联释放所有活跃 PUA agent：P10→P9→P8→P7 全员释放。/pua:teardown-all。Triggers on: '/pua:teardown-all', '收工', '全员释放', 'teardown all', 'stop all agents'."
+description: "停止并清理所有活跃的 PUA agent/team 本地状态。"
 allowed-tools: ["Bash(rm:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(date:*)", "Bash(mkdir:*)", "Bash(git:*)"]
 ---
 

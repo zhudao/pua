@@ -1,5 +1,5 @@
 ---
-description: "扫描并回收所有孤儿 PUA agent/state。/pua:reap-orphans。Triggers on: '/pua:reap-orphans', '清理孤儿 agent', 'reap orphan', 'cleanup stale agents'."
+description: "扫描并清理本地过期的 PUA agent/state。"
 allowed-tools: ["Bash(find:*)", "Bash(stat:*)", "Bash(rm:*)", "Bash(ls:*)", "Bash(date:*)", "Bash(mkdir:*)"]
 ---
 

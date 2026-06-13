@@ -1,7 +1,7 @@
 {
     "name": "pua",
-    "version": "3.4.6",
-    "description": "PUA Motivator -- forces high-agency follow-through when explicitly requested, after repeated failures, user frustration, passive/giving-up behavior, or unverified completion. v3.4.6 makes integrity guard advisory-only for sensitive-but-legitimate edits while hard-blocking hidden answers. Not for normal first-attempt requests.",
+    "version": "3.5.0",
+    "description": "Opt-in productivity coaching for CodeBuddy. Use for explicit PUA/try-harder requests, repeated-failure frustration, retry/change-approach requests, completion checks, evidence requests, and Ding-style workplace reminders.",
     "author": {
         "name": "探微安全实验室",
         "url": "https://github.com/tanweai"
@@ -12,21 +12,29 @@
     "keywords": [
         "pua",
         "motivation",
-        "never-give-up",
-        "alibaba",
+        "productivity",
+        "try-harder",
+        "retry",
+        "change-approach",
+        "frustration",
+        "quality-check",
+        "completion-checks",
+        "verify-before-done",
+        "evidence-first",
+        "delivery-quality",
+        "workplace-reminders",
+        "workplace-process",
+        "ding-style",
+        "structured-troubleshooting",
         "corporate-culture",
-        "pip",
-        "performance-improvement-plan",
-        "codebuddy",
+        "methodology",
+        "offline",
+        "diagnosis-first",
         "heartbeat",
         "cloudflare",
-        "active-users",
-        "upload",
-        "contribute",
+        "feedback",
         "jsonl",
-        "anonymous-upload",
-        "direct-upload",
-        "rate-limit"
+        "codebuddy"
     ],
     "category": "Productivity"
 }

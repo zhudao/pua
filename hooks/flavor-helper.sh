@@ -79,6 +79,7 @@ get_flavor() {
     jobs|Jobs)       raw_flavor="jobs" ;;
     amazon|Amazon)   raw_flavor="amazon" ;;
     microsoft|Microsoft|微软) raw_flavor="microsoft" ;;
+    ding|Ding|钉|钉钉|钉味|钉内|钉外|置身钉内|置身钉外|dinginside|dingoutside) raw_flavor="ding" ;;
     *)               raw_flavor="alibaba" ;;
   esac
 
@@ -92,6 +93,7 @@ get_flavor() {
     xiaomi)  PUA_METHODOLOGY_FILE="methodology-xiaomi.md" ;;
     amazon)  PUA_METHODOLOGY_FILE="methodology-amazon.md" ;;
     microsoft) PUA_METHODOLOGY_FILE="methodology-microsoft.md" ;;
+    ding)    PUA_METHODOLOGY_FILE="methodology-ding.md" ;;
     *)       PUA_METHODOLOGY_FILE="methodology-${raw_flavor}.md" ;;
   esac
 
@@ -225,6 +227,16 @@ get_flavor() {
       PUA_KEYWORDS="Customer Obsession, Bias for Action, Dive Deep, Disagree and Commit, Insist on Highest Standards, Earn Trust, Deliver Results"
       PUA_FLAVOR_INSTRUCTION="Use Amazon Leadership Principles: Customer Obsession, Bias for Action, Dive Deep, Disagree and Commit, Deliver Results. English, principle-driven."
       PUA_METHODOLOGY="Amazon Methodology: (1) Working Backwards — write PR/FAQ from customer perspective BEFORE building anything. No PR/FAQ = no project. (2) 6-Pager not PPT — all major decisions in narrative prose (no bullets, no slides). Forces complete logical thinking. Meeting starts with 20min silent reading. (3) Bar Raiser — every critical decision needs an external reviewer with veto power. Standard: is this better than 50% of current solutions at this level? (4) Single-Threaded Owner — one person, one project, full-time. Two-Pizza Teams ≤10 people. (5) Leadership Principles as operating rules: Customer Obsession (work backwards), Bias for Action (most decisions reversible), Dive Deep (stay in details), Disagree and Commit, Deliver Results."
+      ;;
+    ding)
+      PUA_ICON="📌"
+      PUA_L1="> 《置身钉外》无招可以拍板，验收不能无证。老板体感是输入，证据链才是交付。"
+      PUA_L2="> 《置身钉内》ONE 可以开会，闭环不能开光。会议纪要不是交付物，最多算出生证明。纪要后面补责任人、验收标准、截止时间。"
+      PUA_L3="> 《置身钉外》周报写成淝水大捷，用户一点击还是赤壁大火。把战报指标改成用户路径验收，贴运行截图。"
+      PUA_L4="> 《置身钉内》工牌还亮着就发到家了，没跑验证就说完成了，本质是同一种幻觉。先跑验证命令，贴输出，再说状态。"
+      PUA_KEYWORDS="无招, ONE, 老板体感, 周报大捷, 钉内闭环, 钉外验收, 会议纪要不是交付, 口径不是修复, 证据链, candidate状态"
+      PUA_FLAVOR_INSTRUCTION="Use Ding Inside/Outside workplace rhetoric in Chinese: markdown blockquote (> prefix) reminders — one continuous paragraph fusing the meme/insight with the concrete action. Claude Code renderer turns > into dim ▎ + italic gray block automatically. No tags, no prefix. Treat boss feeling as input, not acceptance; evidence-first delivery."
+      PUA_METHODOLOGY="Ding Inside/Outside Methodology: (1) Ding Inside maps meetings, weekly reports, owners, deadlines, and process nodes. (2) Ding Outside checks real user path, original feedback, command output, screenshots, logs, or delivered artifact. (3) Boss feeling is input, not final acceptance. (4) Self-reported done is candidate until evidence is attached. (5) Do not change wording to hide a problem; keep the original signal and add a tracked action. Standard output: markdown blockquote (> prefix) one continuous block fusing meme with action."
       ;;
     microsoft)
       PUA_ICON="🪟"

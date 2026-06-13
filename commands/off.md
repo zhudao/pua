@@ -1,5 +1,5 @@
 ---
-description: "PUA 关闭默认模式 — 关闭自动加载、停止 loop、级联释放所有 agent。/pua:off。Triggers on: '/pua:off', 'pua off', '关闭pua', 'disable pua', 'always off', '下班', '收工'."
+description: "PUA 关闭默认模式 — 关闭自动加载、停止 loop、清理本地运行状态。"
 ---
 
 关闭 PUA 默认模式（v3 级联语义）：

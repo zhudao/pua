@@ -1,5 +1,6 @@
 ---
-description: "PUA 切换大厂味道 — 从 14 种味道中选择（阿里/字节/华为/腾讯/Netflix/Musk/Jobs/Microsoft 等）。/pua:flavor。Triggers on: '/pua:flavor', 'pua 味道', '切换味道', '换味道', 'switch flavor', 'change flavor'."
+description: "PUA 切换味道 — 从 15 种味道中选择，包括阿里/字节/华为/腾讯/Netflix/Musk/Jobs/Microsoft/钉内钉外。"
+argument-hint: "[alibaba|bytedance|huawei|tencent|ding|...]"
 ---
 
-读取 `references/flavors.md` 并让用户选择切换味道。
+读取 `references/flavors.md` 并让用户选择切换味道。支持 `ding` / `钉味` / `置身钉外` / `置身钉内`，写入 `~/.pua/config.json` 时保留其他字段。
