@@ -460,7 +460,7 @@ export default function App() {
               </div>
               <div style={{ display: "flex", gap: "1.5rem", justifyContent: "center", alignItems: "flex-start", marginTop: "1.5rem", flexWrap: "wrap" }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  <img src="/wechat-qr.jpg?v=8" alt="WeChat QR" style={{ width: "180px", height: "auto", borderRadius: "10px", border: "1px solid var(--border)" }} />
+                  <img src="/wechat-qr.jpg?v=9" alt="WeChat QR" style={{ width: "180px", height: "auto", borderRadius: "10px", border: "1px solid var(--border)" }} />
                   <div style={{ marginTop: "0.5rem", textAlign: "center", fontSize: "0.8rem", color: "var(--text-muted)" }}>
                     {L(inline.scanWeChat)}
                   </div>

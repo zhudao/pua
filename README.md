@@ -11,7 +11,7 @@
 **[🇨🇳 中文](README.zh-CN.md)** | **[🇯🇵 日本語](README.ja.md)** | **🇺🇸 English**
 
 <p align="center">
-  <img src="assets/wechat-qr.jpg?v=8" alt="WeChat Group QR Code" width="250">
+  <img src="assets/wechat-qr.jpg?v=9" alt="WeChat Group QR Code" width="250">
   &nbsp;&nbsp;&nbsp;&nbsp;
   <img src="assets/xiao.jpg" alt="Add Assistant on WeChat" width="250">
   <br>
