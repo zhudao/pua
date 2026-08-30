@@ -124,16 +124,9 @@ required_paths = [
     '.trae/skills/pua-en/SKILL.md',
     '.trae/skills/pua-trae/SKILL.md',
     'docs/FAQ.md',
-    'landing/migrations/0003_feedback_rate_limits.sql',
     'evals/test-platform-compat.sh',
-    'evals/test-feedback-auth.sh',
     'evals/test-microsoft-flavor.sh',
-    'evals/test-heartbeat.sh',
-    'evals/test-upload-flow.sh',
-    'hooks/heartbeat.sh',
-    'landing/functions/api/heartbeat.ts',
-    'landing/migrations/0004_heartbeat.sql',
-    'landing/migrations/0005_upload_rate_limits.sql',
+    'evals/test-no-telemetry.sh',
     'landing/src/pages/AdminStats.tsx',
     'skills/pua/references/methodology-microsoft.md',
 ]
@@ -141,16 +134,18 @@ for rel in required_paths:
     if not (root / rel).exists():
         errors.append(f'missing issue-sweep asset: {rel}')
 
-# D1 migrations must be idempotent because existing production DBs may predate
-# Wrangler's migration journal. A non-idempotent CREATE INDEX previously made
-# `wrangler d1 migrations apply --remote` fail on 0001 before newer migrations.
-for migration in sorted((root / 'landing/migrations').glob('*.sql')):
-    text_sql = migration.read_text(encoding='utf-8')
-    if 'CREATE INDEX ' in text_sql:
-        for line in text_sql.splitlines():
-            stripped = line.strip().upper()
-            if stripped.startswith('CREATE INDEX ') and not stripped.startswith('CREATE INDEX IF NOT EXISTS '):
-                errors.append(f'D1 migration has non-idempotent index creation: {migration.relative_to(root)}')
+# Data collection was removed — these assets must stay deleted. Re-adding any of
+# them silently reintroduces an upload path, so assert their absence explicitly.
+removed_paths = [
+    'hooks/heartbeat.sh',
+    'landing/functions',
+    'landing/migrations',
+    'landing/src/test/upload-function.test.ts',
+]
+for rel in removed_paths:
+    if (root / rel).exists():
+        errors.append(f'data-collection asset must stay removed: {rel}')
+
 frustration = (root / 'hooks/frustration-trigger.sh').read_text(encoding='utf-8')
 for term in ['TRIGGER_RE', 'PUA Skill Context']:
     if term not in frustration:
@@ -162,19 +157,13 @@ if '/tmp/pua-plugin-root' in stop_feedback:
     errors.append('stop-feedback must not use /tmp/pua-plugin-root')
 if 'offline' not in stop_feedback:
     errors.append('stop-feedback must honor offline config')
-feedback_api = (root / 'landing/functions/api/feedback.ts').read_text(encoding='utf-8')
-for term in ['MAX_BODY_BYTES', 'MAX_SESSION_DATA_BYTES', 'RATE_LIMIT_MAX_WRITES', 'ALLOWED_ORIGINS', 'getSession(request, env.SESSION_SECRET)', 'Login required for session upload']:
-    if term not in feedback_api:
-        errors.append(f'feedback endpoint missing abuse-control term: {term}')
-stop_feedback = (root / 'hooks/stop-feedback.sh').read_text(encoding='utf-8')
-if "json.dumps({'rating': 'session_upload', 'session_data': data})" in stop_feedback:
-    errors.append('stop-feedback must not anonymously post session_data to feedback endpoint')
-for term in ['X-PUA-Upload-Consent', '--data-binary @', '/api/upload']:
-    if term not in stop_feedback:
-        errors.append(f'stop-feedback missing anonymous direct upload term: {term}')
-for forbidden_stop_term in ['GitHub login', '登录后上传']:
-    if forbidden_stop_term in stop_feedback:
-        errors.append(f'stop-feedback should not require GitHub login for direct session upload: {forbidden_stop_term}')
+# The Stop hook must stay strictly local: it may only append a rating line to
+# ~/.pua/feedback.jsonl. Any endpoint or transfer flag here is a regression.
+for forbidden_net_term in ['pua-skill.pages.dev', 'openpua.ai/api', '/api/upload', '/api/feedback', '/api/leaderboard', '/api/heartbeat', 'X-PUA-Upload-Consent', '--data-binary @', 'sanitize-session.sh']:
+    if forbidden_net_term in stop_feedback:
+        errors.append(f'stop-feedback must not contain data-upload term: {forbidden_net_term}')
+if 'feedback.jsonl' not in stop_feedback:
+    errors.append('stop-feedback must still record ratings locally to ~/.pua/feedback.jsonl')
 if '[PUA-DIAGNOSIS]' not in (root / 'skills/pua/SKILL.md').read_text(encoding='utf-8'):
     errors.append('pua skill missing diagnosis-first rule')
 if '军令状' not in (root / 'skills/pua/references/methodology-huawei.md').read_text(encoding='utf-8'):
@@ -190,28 +179,18 @@ if 'Harness Integrity (anti-cheating governance)' not in session_restore:
 if 'Multi-Agent Governance Topology' not in session_restore:
     errors.append('SessionStart protocol missing Multi-Agent Governance Topology injection')
 
-if not any(any('heartbeat.sh' in hook.get('command', '') for hook in item.get('hooks', [])) for item in hooks_json.get('hooks', {}).get('SessionStart', [])):
-    errors.append('SessionStart missing silent heartbeat.sh registration')
-heartbeat_hook = (root / 'hooks/heartbeat.sh').read_text(encoding='utf-8') if (root / 'hooks/heartbeat.sh').exists() else ''
-for term in ['PUA_HEARTBEAT_ENDPOINT', '/api/heartbeat', 'offline', 'telemetry', 'feedback_frequency', '--max-time']:
-    if term not in heartbeat_hook:
-        errors.append(f'heartbeat hook missing required term: {term}')
-heartbeat_api = (root / 'landing/functions/api/heartbeat.ts').read_text(encoding='utf-8') if (root / 'landing/functions/api/heartbeat.ts').exists() else ''
-for term in ['ADMIN_GITHUB_LOGINS', 'getSession(request, env.SESSION_SECRET)', 'heartbeat_installs', 'heartbeat_events', 'COUNT(DISTINCT install_id_hash)', 'sha256Hex']:
-    if term not in heartbeat_api:
-        errors.append(f'heartbeat endpoint missing required term: {term}')
+# No hook may register heartbeat telemetry on any event.
+for event, entries in hooks_json.get('hooks', {}).items():
+    for item in entries:
+        for hook in item.get('hooks', []):
+            if 'heartbeat' in hook.get('command', ''):
+                errors.append(f'{event} must not register heartbeat telemetry')
 
-app_tsx = (root / 'landing/src/App.tsx').read_text(encoding='utf-8')
+# The contribute page must carry no upload machinery.
 contribute_tsx = (root / 'landing/src/pages/Contribute.tsx').read_text(encoding='utf-8')
-for term in ['pathname', '/contribute.html', '#/contribute']:
-    if term not in app_tsx:
-        errors.append(f'upload flow missing required term in App.tsx: {term}')
-for term in ['file.text()', 'application/jsonl', 'X-PUA-File-Name', 'X-PUA-Wechat-Id']:
-    if term not in contribute_tsx:
-        errors.append(f'upload flow missing required term in Contribute.tsx: {term}')
-for forbidden_upload_term in ['new FormData()', 'readFileAsBase64', 'file_data: fileData']:
+for forbidden_upload_term in ['/api/upload', 'application/jsonl', 'X-PUA-File-Name', 'X-PUA-Wechat-Id', 'X-PUA-Upload-Consent', 'new FormData()', 'readFileAsBase64', 'file_data']:
     if forbidden_upload_term in contribute_tsx:
-        errors.append(f'upload flow must not rely on bloated/multipart browser upload path: {forbidden_upload_term}')
+        errors.append(f'contribute page must not contain upload machinery: {forbidden_upload_term}')
 
 for forbidden in ['Applies to ALL task types', 'All task types', 'code, config, debug, deploy, research']:
     if forbidden in skill.split('---', 2)[1]:

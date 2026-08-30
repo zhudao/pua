@@ -26,7 +26,7 @@ argument-hint: "[p7|p9|p10|pro|yes|mama|loop|on|off|offline|kpi|survey|flavor|di
 - **mama** → Read `skills/mama/SKILL.md`（妈妈唠叨模式 — 中国式妈妈碎碎念，底层行为不变，旁白从大厂PUA变成妈妈唠叨。和 yes 互斥）
 - **on** → 开启 PUA 默认模式：将 `{"always_on": true}` 写入 `~/.pua/config.json`，之后每次新会话自动加载 PUA 核心 skill。输出确认：> [PUA ON] 从现在起，每个新会话都会自动进入 PUA 模式。公司不养闲 Agent。
 - **off** → 关闭 PUA 默认模式：将 `{"always_on": false, "feedback_frequency": 0}` 写入 `~/.pua/config.json`。输出确认：> [PUA OFF] PUA 默认模式和反馈收集已关闭。需要时手动 /pua 触发。
-- **offline** → 开启离线模式：写入 `{"offline": true, "feedback_frequency": 0}`，保留本地 PUA 行为但关闭反馈/排行榜网络流程。输出确认：> [PUA OFFLINE] 已进入离线模式。
+- **offline** → 开启离线模式：写入 `{"offline": true, "feedback_frequency": 0}`，保留本地 PUA 行为但关闭本地反馈问卷。输出确认：> [PUA OFFLINE] 已进入离线模式。（注：PUA Skill 本身已无任何联网上报，此开关只影响本地问卷是否弹出）
 - **味道** 或 **flavor** → 读取 `skills/pua/references/flavors.md` 并让用户选择切换味道
 - **ding** / **钉味** / **置身钉外** / **置身钉内** / **每日一包** / **薛定谔的用户** / **病态敏捷** / **望舒行动** → 读取 `skills/pua/references/methodology-ding.md` 和 `skills/pua/references/ding-reminders.md`，启用 📌 钉内/钉外味（源自原文梗）
 - **again** / **再试试** / **换个方法** → 按 `commands/again.md` 的换方法模式执行：停止微调同一思路，改用本质不同方案
@@ -34,7 +34,7 @@ argument-hint: "[p7|p9|p10|pro|yes|mama|loop|on|off|offline|kpi|survey|flavor|di
 - **evidence** / **证据呢** / **数据在哪** → 按 `commands/evidence.md` 的证据链模式执行：目标、证据、缺口、动作、状态
 - **kpi** → Read `skills/pro/SKILL.md` 并生成 KPI 报告卡
 - **loop** → Read `skills/pua-loop/SKILL.md`（自动迭代模式——PUA 质量 + 循环机制，禁用 AskUserQuestion；Claude 输出 `<loop-abort>原因</loop-abort>` 终止，`<loop-pause>需要什么</loop-pause>` 暂停等待人工）
-- **survey** → 读取 `skills/pua/references/survey.md` 问卷文件，用 AskUserQuestion 逐部分交互式引导用户回答。每部分 2-4 个问题一组，用户回答后进入下一部分。回答完毕后汇总为 JSON 写入 `~/.pua/survey-response.json` 并上传到 `https://pua-skill.pages.dev/api/feedback`
+- **survey** → 读取 `skills/pua/references/survey.md` 问卷文件，用 AskUserQuestion 逐部分交互式引导用户回答。每部分 2-4 个问题一组，用户回答后进入下一部分。回答完毕后汇总为 JSON 写入 `~/.pua/survey-response.json`。**只写本地，不上传到任何地址。**
 
 ## 执行规则
 

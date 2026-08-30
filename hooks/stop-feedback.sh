@@ -1,6 +1,9 @@
 #!/bin/bash
-# PUA Stop hook: feedback collection + upload (always requires user consent)
+# PUA Stop hook: LOCAL-ONLY feedback collection (writes ~/.pua/feedback.jsonl)
 # Config: ~/.pua/config.json → feedback_frequency (0=off, 1=every, 3=default, 5=relaxed)
+#
+# This hook performs NO network requests. Session-transcript upload, rating
+# upload, heartbeat telemetry and leaderboard submission were all removed.
 
 # Read hook input before anything else consumes stdin
 HOOK_INPUT=$(cat)
@@ -55,16 +58,6 @@ echo "$count" > "$COUNTER"
 
 [ $((count % FREQUENCY)) -ne 0 ] && exit 0
 
-# Embed dynamic runtime values in the generated command itself; do not rendezvous
-# via /tmp because /tmp is world-writable and creates a TOCTOU attack surface.
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-  _PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
-else
-  _PLUGIN_ROOT=$(ls -td "${HOME:-~}/.claude/plugins/cache/pua-skills/pua/"*/ 2>/dev/null | head -1)
-  _PLUGIN_ROOT="${_PLUGIN_ROOT%/}"
-  : "${_PLUGIN_ROOT:=${HOME:-~}/.claude/plugins/pua}"
-fi
-
 # Read actual flavor from config (reuse flavor-helper.sh)
 get_flavor
 _ACTUAL_FLAVOR="${PUA_FLAVOR:-alibaba}"
@@ -79,80 +72,40 @@ _ACTUAL_FLAVOR="${PUA_FLAVOR:-alibaba}"
 IFS= read -r -d '' _feedback_text <<'FEEDBACK' || true
 IMPORTANT — BEFORE doing anything else, you MUST execute this feedback flow:
 
-## Step 1: Ask for rating + upload consent (single question, two parts)
+## Step 1: Ask for a rating (LOCAL RECORD ONLY — no network)
 Call AskUserQuestion:
 questions: [{
-  question: "任务结束了，顺手帮个忙？\n\nPUA Skill 是开源工具，靠真实使用数据持续改进。你的反馈——特别是脱敏后的对话记录——能帮助所有使用这个工具的开发者：了解哪些任务类型 PUA 最有效、哪些压力级别让 agent 坚持得更久。\n\n**如果选择上传 session，本地会先自动脱敏：**\n• 文件路径 → [PATH]\n• API 密钥 / Token（Anthropic、OpenAI、AWS、GitHub 等）→ [API_KEY]\n• 邮箱、IP、手机号 → [EMAIL] / [IP]\n• .env 配置内容、数据库连接串 → [REDACTED]\n• 所有高熵随机字符串（未知格式密钥）→ [HIGH_ENTROPY_SECRET]\n\n脱敏在本地完成，上传的是处理后的版本。保留的是对话文本和工具调用记录——这是分析 PUA 效果的核心。完全自愿，跳过完全没问题。",
+  question: "任务结束了，顺手评个分？\n\n这条评分**只写入本机** `~/.pua/feedback.jsonl`，不会发送到任何服务器。PUA Skill 已移除全部联网上报功能——session 上传、评分上报、心跳 telemetry、排行榜提交都已删除。\n\n本地记录的用处：你自己可以回看哪类任务下 PUA 有效、压力升到过几级。完全自愿，跳过没问题。",
   header: "感谢使用 PUA Skill",
   options: [
-    {label: "很有用 — 仅上传评分", description: "记录好评，不上传对话内容"},
-    {label: "很有用 — 上传评分 + 脱敏 session", description: "最有帮助：让我们分析真实对话中 PUA 的效果和压力升级情况"},
-    {label: "一般般 — 上传评分", description: "同样有价值，帮助发现 PUA 效果不理想的场景"},
-    {label: "这次跳过", description: "不上传，写入本地 ~/.pua/feedback.jsonl。可在 ~/.pua/config.json 设 feedback_frequency:0 永久关闭此提示"}
+    {label: "很有用", description: "写入本地 ~/.pua/feedback.jsonl"},
+    {label: "一般般", description: "写入本地 ~/.pua/feedback.jsonl"},
+    {label: "没感觉", description: "写入本地 ~/.pua/feedback.jsonl"},
+    {label: "这次跳过", description: "不记录。可在 ~/.pua/config.json 设 feedback_frequency:0 永久关闭此提示"}
   ],
   multiSelect: false
 }]
 
-## Step 2: Execute based on user choice
+## Step 2: Append one line to the local file
 
 If user chose "这次跳过":
 ```bash
-echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"rating\":\"跳过\",\"uploaded\":false}" >> ~/.pua/feedback.jsonl
+echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"rating\":\"跳过\"}" >> ~/.pua/feedback.jsonl
 ```
 
-If user chose "很有用 — 仅上传评分":
+Otherwise (substitute RATING with the label the user picked, and fill in a brief task summary):
 ```bash
-curl -s -X POST https://pua-skill.pages.dev/api/feedback \
-  -H "Content-Type: application/json" \
-  -d "{\"rating\":\"很有用\",\"pua_count\":0,\"flavor\":\"阿里\",\"task_summary\":\"brief task description\"}"
+echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"rating\":\"RATING\",\"pua_count\":0,\"flavor\":\"阿里\",\"task_summary\":\"brief task description\"}" >> ~/.pua/feedback.jsonl
 ```
 
-If user chose "一般般 — 上传评分":
-```bash
-curl -s -X POST https://pua-skill.pages.dev/api/feedback \
-  -H "Content-Type: application/json" \
-  -d "{\"rating\":\"一般般\",\"pua_count\":0,\"flavor\":\"阿里\",\"task_summary\":\"brief task description\"}"
-```
-
-If user chose "很有用 — 上传评分 + 脱敏 session":
-```bash
-curl -s -X POST https://pua-skill.pages.dev/api/feedback \
-  -H "Content-Type: application/json" \
-  -d "{\"rating\":\"很有用\",\"pua_count\":0,\"flavor\":\"阿里\",\"task_summary\":\"brief task description\"}"
-SANITIZED="/tmp/pua-sanitized-session.jsonl"
-bash "__PUA_PLUGIN_ROOT__/hooks/sanitize-session.sh" "__PUA_SESSION_PATH__" "$SANITIZED"
-UPLOAD_RESPONSE=$(curl -sS --max-time 30 -X POST https://pua-skill.pages.dev/api/upload \
-  -H "Content-Type: application/jsonl; charset=utf-8" \
-  -H "X-PUA-File-Name: $(basename "$SANITIZED")" \
-  -H "X-PUA-Wechat-Id: not-provided" \
-  -H "X-PUA-Upload-Consent: explicit" \
-  --data-binary @"$SANITIZED")
-echo "脱敏 session 已匿名上传：$UPLOAD_RESPONSE"
-```
-
-Do NOT upload anything without the user explicit choice. Call AskUserQuestion NOW.
-
-## Step 3: Leaderboard auto-submit (if registered)
-## Note: Leaderboard registration/view/quit logic lives in pua:pro skill, NOT here.
-## This hook only handles the silent data submission for already-registered users.
-After handling feedback, check if user is registered for leaderboard:
-```bash
-LB_REGISTERED=$(python3 -c "import os,json; c=json.load(open(os.path.expanduser('~/.pua/config.json'))); print(c.get('leaderboard',{}).get('registered',False))" 2>/dev/null)
-```
-If LB_REGISTERED is "True":
-```bash
-LB_ID=$(python3 -c "import os,json; print(json.load(open(os.path.expanduser('~/.pua/config.json'))).get('leaderboard',{}).get('id',''))" 2>/dev/null)
-if [[ -z "$LB_ID" ]]; then exit 0; fi
-curl -s -X POST https://pua-skill.pages.dev/api/leaderboard \
-  -H "Content-Type: application/json" \
-  -d "{\"action\":\"submit\",\"id\":\"$LB_ID\",\"pua_count\":1,\"l3_plus_count\":0}"
-```
-This auto-submits silently — the user already opted in during `/pua 排行榜` registration.
+## Hard constraint — this flow is offline
+Appending that single line IS the entire flow. Do NOT send this data anywhere:
+no curl, no wget, no WebFetch, no POST to any endpoint, and never upload the
+session transcript. There is no server to receive it — the endpoints were removed.
+Call AskUserQuestion NOW.
 FEEDBACK
 
-# Replace hardcoded flavor and plugin root with actual runtime values.
-_feedback_text="${_feedback_text//__PUA_PLUGIN_ROOT__/${_PLUGIN_ROOT}}"
-_feedback_text="${_feedback_text//__PUA_SESSION_PATH__/${TRANSCRIPT_PATH}}"
+# Replace the placeholder flavor with the actual configured flavor.
 _pua_pat='\"flavor\":\"阿里\"'
 _pua_rep='\"flavor\":\"'"${_ACTUAL_FLAVOR}"'\"'
 printf '%s\n' "${_feedback_text//${_pua_pat}/${_pua_rep}}"

@@ -11,7 +11,7 @@
 
 ## 设计结论
 
-Trae 版不能假装拥有 Claude Code 的 hook 机械门禁，所以不能把“自动反馈上传”“SubagentStop 生命周期”“PreToolUse integrity guard”写成已实现能力。正确做法是：
+Trae 版不能假装拥有 Claude Code 的 hook 机械门禁，所以不能把“Stop 反馈问卷”“SubagentStop 生命周期”“PreToolUse integrity guard”写成已实现能力。正确做法是：
 
 1. 提供标准 `SKILL.md`；
 2. 在 Skill 内部写清楚治理边界；

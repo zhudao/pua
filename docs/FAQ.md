@@ -38,7 +38,9 @@
 }
 ```
 
-离线模式会关闭 PUA 自身的反馈问卷、排行榜上报和 session 上传提示；PUA 的本地验证、压力升级、诊断先行仍可使用。
+离线模式会关闭任务结束时的反馈问卷；PUA 的本地验证、压力升级、诊断先行仍可使用。
+
+注意：PUA 已移除全部联网上报功能，**默认就不发送任何数据**，无需靠离线模式来阻止上传。这个开关现在只控制问卷是否弹出。
 
 ## Codex CLI 子命令怎么对应 Claude Code？
 
@@ -61,16 +63,23 @@ Codex 没有 Claude Code 的 `/pua:xxx` slash command 命名空间时，可以�
 - `.trae/skills/`：Trae 标准 `SKILL.md` 包；`trae/` 保留 Prompt/Rule 复制版和差异说明。
 - Trae / Pi 都不继承 Claude Code hooks；四权分离 gate 必须通过 Skill 工作规程、外部验证和用户确认落地。
 
-## Feedback endpoint 为什么仍限制 `session_data`？
+## PUA 会不会上传我的数据？
 
-从 v3.4.5 起采用新折中：
+不会。全部数据收集功能已移除，客户端不发、服务端也不再接收。具体删掉了五条通道：
 
-- 匿名评分仍允许写入 `/api/feedback`，便于低摩擦反馈；
-- `/api/feedback` 里的 `session_data` 字段仍要求登录，避免旧入口被滥用；
-- Skill 内的 session 贡献改走 `/api/upload`：用户在 AskUserQuestion 里明确同意后，本地先脱敏，再以匿名 raw JSONL 直传；
-- `/api/upload` 对匿名上传有 consent header、50MB 限制、文件名清洗和 D1 rate limit。
+| 已移除 | 曾经发送的内容 |
+|--------|----------------|
+| session 语料上传 | 脱敏后的对话 `.jsonl` 全文 |
+| 评分反馈上报 | 评分、PUA 计数、味道、任务摘要 |
+| 静默心跳 telemetry | 随机安装 ID、插件版本、平台、味道 |
+| PUA 排行榜 | 邮箱、手机号、PUA 计数、L3+ 计数 |
+| pua-api 平台 | 手机号 + 短信验证码注册、session_start/pua_triggered/command_used 事件上报，以及依赖它的远端指令模板拉取和支付流程 |
 
-这比强制 GitHub 登录更利于收集真实数据，同时避免“无同意、无脱敏、无限流”的裸奔上传。
+对应的客户端 hook、服务端 Pages Functions、D1 迁移和 Cloudflare 绑定都已删除。
+
+任务结束时的反馈问卷保留，但只 append 一行到本机 `~/.pua/feedback.jsonl`。
+
+回归防护：`evals/test-no-telemetry.sh` 对全仓做反向断言——扫描已知采集域名、endpoint 路径、行首的 `curl`/`wget` 调用，以及已删文件的重新出现。任何一条被加回来，测试就会失败。
 
 
 ## Integrity Guard 为什么不再使用 `permissionDecision: "ask"`？
@@ -94,19 +103,22 @@ Codex 没有 Claude Code 的 `/pua:xxx` slash command 命名空间时，可以�
 - start/intervene → “亲自动手” / “亲自介入”；
 - stop/release → “释放” / “退场”。
 
-## 静默 heartbeat 会不会污染对话？
+## 静默 heartbeat 还在吗？
 
-不会。v3.4.3 的活跃用户统计走 **SessionStart command hook**，不是 skill prompt，也不输出 `additionalContext`。因此模型上下文里不会出现 heartbeat endpoint、install id 或统计提示。
+不在了。SessionStart 的 heartbeat hook 已删除，`~/.pua/install_id` 不再被使用也不再被创建。老版本留下的这个文件可以直接删掉。
 
-治理边界：
+## `openpua.ai/contribute.html` 现在是什么？
 
-- `offline: true`、`telemetry: false` 或 `feedback_frequency: 0` 会关闭 heartbeat；
-- 本地只生成随机 install id，Cloudflare D1 只保存 SHA-256 hash；
-- 管理页面是 `https://openpua.ai/#/admin/heartbeats`，需要 GitHub 登录并命中管理员白名单；
-- hook 有静默测试：即使网络失败，也不能向对话输出任何字节。
+一个说明页。原来的上传表单已移除，页面只说明数据收集已停止。GitHub 登录、上传历史、管理统计面板一并下线，因为它们唯一的用途就是给上传归属和看采集量。
 
-## 上传数据入口打不开或上传失败怎么办？
+## 我想手动脱敏一份 session 自己用，还有工具吗？
 
-从 v3.4.4 起，`https://openpua.ai/contribute.html` 是一等路由：GitHub 登录回跳、登出回跳、README 和 Stop hook 都可以直接使用这个地址，不再依赖 hash route。
+有。`hooks/sanitize-session.sh` 保留下来了，它是纯本地工具，不联网：
 
-上传链路默认发送 raw JSONL：前端直接把 `.jsonl` 文本 POST 到 `/api/upload`，文件名和可选微信号放在 header 里。服务端仍保留 JSON `file_data` 和 multipart 兼容，但默认 raw JSONL 路径可以避开 multipart body 剥离，也不会产生 base64 体积膨胀。
+```bash
+bash hooks/sanitize-session.sh <输入.jsonl> <输出.jsonl>
+```
+
+三层脱敏：已知格式黑名单（路径、各家云厂商密钥、JWT、PEM 私钥、数据库连接串、邮箱/IP/手机号）→ `key=value` 上下文识别 → Shannon 熵兜底（32 字符以上的高熵串，纯 hex 用更高阈值以免误伤 git hash）。
+
+它现在没有任何调用方，删掉它也不影响 PUA 运行。

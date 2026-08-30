@@ -649,21 +649,26 @@ Hooks（v3、Claude Code専用）:
 | `/pua:reap-orphans` 🆕 | **v3.2** — 孤児agentをスキャンして回収（state mtime > 30min で心拍なし） |
 | `/pua:teardown-all` 🆕 | **v3.2** — 全アクティブagentをカスケード解放（P10 → P9 → P8 → P7 全員退場） |
 
-## データ貢献
+## プライバシー — データ収集なし
 
-Claude Code / Codex CLIの対話ログ（`.jsonl`）をアップロードして、PUA Skillの改善にご協力ください。
+PUA Skill はネットワークに何も送信しません。アカウントも、テレメトリも、アップロードもありません。かつて存在した 5 つの収集チャネルは、クライアント・サーバーともに削除済みです：
 
-**[アップロードはこちら →](https://openpua.ai/contribute.html)**
+| 削除済み | 送信していた内容 |
+|----------|------------------|
+| セッション記録のアップロード | マスキング後の対話 `.jsonl` 全文 |
+| 評価フィードバック送信 | 評価、PUA カウント、フレーバー、タスク要約 |
+| サイレント・ハートビート | ランダムなインストール ID、プラグイン版数、プラットフォーム、フレーバー |
+| PUA リーダーボード | メールアドレス、電話番号、PUA カウント、L3+ カウント |
+| pua-api プラットフォーム | 電話番号 / SMS 登録、サイレントなイベント送信、リモート prompt テンプレート取得、決済 |
 
-アップロードされたファイルはベンチマークテストとアブレーションスタディの分析に使用され、異なるPUA戦略がAIデバッグ行動に与える影響を定量化します。
+タスク終了時のフィードバックは残っていますが、ローカルの `~/.pua/feedback.jsonl` に 1 行追記するだけです。非表示にするには `/pua:offline`、または `~/.pua/config.json` で `feedback_frequency: 0` を設定してください。
 
-`.jsonl` ファイルの取得：
+`evals/test-no-telemetry.sh` が逆方向アサーションでこれを保証します。収集ホスト、エンドポイントパス、送信ボディ、削除済みファイルをリポジトリ全体でスキャンするため、退行はサイレントに出荷されずテスト失敗になります。
+
+自分用にセッションをマスキングしたい場合、`hooks/sanitize-session.sh` はオフライン単体ツールとして残されています：
+
 ```bash
-# Claude Code
-ls ~/.claude/projects/*/sessions/*.jsonl
-
-# Codex CLI
-ls ~/.codex/sessions/*.jsonl
+bash hooks/sanitize-session.sh <入力.jsonl> <出力.jsonl>
 ```
 
 ## License

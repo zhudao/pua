@@ -70,13 +70,13 @@ if grep -RIn "下场" "$ROOT/agents" "$ROOT/commands" "$ROOT/skills/pua/referenc
 else
   pass "ambiguous 下场 wording removed"
 fi
-assert_grep 'MAX_BODY_BYTES|MAX_SESSION_DATA_BYTES|RATE_LIMIT' landing/functions/api/feedback.ts "feedback endpoint has abuse limits"
-assert_grep 'getSession\\(request, env\\.SESSION_SECRET\\)|Login required for session upload' landing/functions/api/feedback.ts "feedback session upload requires authentication"
-assert_not_grep "json\\.dumps\\(\\{'rating': 'session_upload', 'session_data': data\\}\\)" hooks/stop-feedback.sh "stop-feedback does not anonymously upload session_data"
-assert_grep 'X-PUA-Upload-Consent|--data-binary @|/api/upload' hooks/stop-feedback.sh "stop-feedback uploads sanitized session directly after consent"
-assert_not_grep 'GitHub login|登录后上传' hooks/stop-feedback.sh "stop-feedback no longer requires GitHub login"
-assert_grep 'upload_rate_limits' landing/migrations/0005_upload_rate_limits.sql "anonymous upload rate-limit migration exists"
-assert_grep 'feedback_rate_limits' landing/migrations/0003_feedback_rate_limits.sql "feedback rate-limit migration exists"
+# Data collection was removed. The endpoints that used to need abuse limits and
+# authentication no longer exist, so those gates moved to reverse assertions in
+# evals/test-no-telemetry.sh. What remains checkable here is that the Stop hook
+# stayed local: it may only append a rating line, never transmit one.
+assert_not_grep 'pua-skill\.pages\.dev|agentguard\.workers\.dev' hooks/stop-feedback.sh "stop-feedback references no collection host"
+assert_not_grep 'data-binary|Upload-Consent' hooks/stop-feedback.sh "stop-feedback carries no upload payload flags"
+assert_grep 'feedback\.jsonl' hooks/stop-feedback.sh "stop-feedback still records the rating locally"
 
 echo "==========================================="
 echo "Passed: $PASS"

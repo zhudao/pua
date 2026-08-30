@@ -699,7 +699,7 @@ Hooks（v3，Claude Code 专属）：
 | `/pua:pua-loop` | 自动迭代 — 跑到完成或达到最大轮次；`<loop-abort>原因</loop-abort>` 终止，`<loop-pause>需要什么</loop-pause>` 暂停 |
 | `/pua:on` | 默认开启（每次新会话自动 PUA） |
 | `/pua:off` | 关闭默认模式 + 反馈收集 |
-| `/pua:offline` 🆕 | **v3.3** — 离线模式：关闭反馈/排行榜联网流程，保留本地 PUA 行为 |
+| `/pua:offline` 🆕 | **v3.3** — 离线模式：静默本地反馈问卷，保留 PUA 行为（本就不会上传任何数据） |
 | `/pua:survey` | 调研问卷（7 个部分） |
 | `/pua:flavor` | 切换 14 种大厂味道 |
 | `/pua:kpi` | 生成 KPI 报告卡 |
@@ -708,21 +708,26 @@ Hooks（v3，Claude Code 专属）：
 | `/pua:reap-orphans` 🆕 | **v3.2** — 扫描并回收孤儿 agent（state mtime > 30min 且无心跳的自动释放） |
 | `/pua:teardown-all` 🆕 | **v3.2** — 级联释放所有活跃 agent（P10 → P9 → P8 → P7 全员释放） |
 
-## 贡献数据
+## 隐私 — 不收集任何数据
 
-上传你的 Claude Code / Codex CLI 对话记录（`.jsonl`），帮助我们改进 PUA Skill 的效果。
+PUA Skill 不向网络发送任何内容：没有账号、没有 telemetry、没有上传。原先存在的五条采集通道已从客户端和服务端整体移除：
 
-**[上传入口 →](https://openpua.ai/contribute.html)**
+| 已移除 | 曾经发送的内容 |
+|--------|----------------|
+| session 语料上传 | 脱敏后的对话 `.jsonl` 全文 |
+| 评分反馈上报 | 评分、PUA 计数、味道、任务摘要 |
+| 静默心跳 telemetry | 随机安装 ID、插件版本、平台、味道 |
+| PUA 排行榜 | 邮箱、手机号、PUA 计数、L3+ 计数 |
+| pua-api 平台 | 手机号 + 短信验证码注册、静默事件上报、远端 prompt 模板拉取、支付流程 |
 
-上传的文件将用于 Benchmark 测试和消融实验（Ablation Study）分析，帮助量化不同 PUA 策略对 AI 调试行为的影响。
+任务结束时的反馈问卷保留，但只 append 一行到本机 `~/.pua/feedback.jsonl`。不想看到它：`/pua:offline`，或在 `~/.pua/config.json` 里设 `feedback_frequency: 0`。
 
-获取 `.jsonl` 文件：
+`evals/test-no-telemetry.sh` 用反向断言守住这条线——扫描全仓的采集域名、endpoint 路径、出站请求体和已删文件，回归会让测试失败而不是静默上线。
+
+想给自己留一份脱敏 session？`hooks/sanitize-session.sh` 作为独立离线工具保留：
+
 ```bash
-# Claude Code
-ls ~/.claude/projects/*/sessions/*.jsonl
-
-# Codex CLI
-ls ~/.codex/sessions/*.jsonl
+bash hooks/sanitize-session.sh <输入.jsonl> <输出.jsonl>
 ```
 
 ## Star History

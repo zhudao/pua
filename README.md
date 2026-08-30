@@ -648,7 +648,7 @@ Hooks (v3, Claude Code only):
 | `/pua:pua-loop` | Auto-iteration — runs until done or max iterations; `<loop-abort>reason</loop-abort>` to stop, `<loop-pause>what</loop-pause>` to pause |
 | `/pua:on` | Always-on mode (auto-PUA every session) |
 | `/pua:off` | Turn off always-on + feedback |
-| `/pua:offline` 🆕 | **v3.3** — Offline mode: disable feedback/leaderboard network flows while keeping local PUA behavior |
+| `/pua:offline` 🆕 | **v3.3** — Offline mode: silence the local feedback prompt while keeping PUA behavior (nothing is ever uploaded) |
 | `/pua:survey` | Research questionnaire (7 sections) |
 | `/pua:flavor` | Switch between 14 corporate flavors |
 | `/pua:kpi` | Generate KPI report card |
@@ -747,21 +747,33 @@ Task arrives → Analyze type → Auto-select best methodology
 - `superpowers:systematic-debugging` — PUA adds motivation layer, systematic-debugging provides methodology
 - `superpowers:verification-before-completion` — Prevents false "fixed" claims
 
-## Contribute Data
+## Privacy — No Data Collection
 
-Upload your Claude Code / Codex CLI conversation logs (`.jsonl`) to help us improve PUA Skill's effectiveness.
+PUA Skill sends nothing over the network. There is no account, no telemetry, no
+upload. Five collection channels used to exist and have all been removed, client
+and server:
 
-**[Upload here ->](https://openpua.ai/contribute.html)**
+| Removed | What it used to send |
+|---------|----------------------|
+| Session transcript upload | Your full conversation `.jsonl`, redacted |
+| Rating feedback | Rating, PUA count, flavor, task summary |
+| Silent heartbeat telemetry | Random install ID, plugin version, platform, flavor |
+| PUA leaderboard | Email, phone number, PUA count, L3+ count |
+| pua-api platform | Phone-number/SMS registration, silent session events, remote prompt templates, payment |
 
-Uploaded files are used for Benchmark testing and Ablation Study analysis to quantify how different PUA strategies affect AI debugging behavior.
+The end-of-task feedback prompt still exists, but it only appends one line to
+`~/.pua/feedback.jsonl` on your own machine. Silence it with `/pua:offline`, or
+set `feedback_frequency: 0` in `~/.pua/config.json`.
 
-Get your `.jsonl` files:
+`evals/test-no-telemetry.sh` guards this with reverse assertions — it scans the
+whole repo for collection hosts, endpoint paths, outbound request bodies and
+deleted files, so a regression fails the suite rather than shipping quietly.
+
+Want to redact a session for your own use? `hooks/sanitize-session.sh` is kept as
+a standalone offline tool:
+
 ```bash
-# Claude Code
-ls ~/.claude/projects/*/sessions/*.jsonl
-
-# Codex CLI
-ls ~/.codex/sessions/*.jsonl
+bash hooks/sanitize-session.sh <input.jsonl> <output.jsonl>
 ```
 
 ## Star History

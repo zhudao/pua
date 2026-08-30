@@ -2,15 +2,9 @@ name = "pua-skill"
 compatibility_date = "2025-04-01"
 pages_build_output_dir = "dist"
 
-[[r2_buckets]]
-binding = "UPLOADS"
-bucket_name = "puaskill-upload"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "pua-uploads-db"
-database_id = "36aa7bb8-b9de-4bf5-a64a-4b5a25cb6eff"
-
-[vars]
-GITHUB_CLIENT_ID = "Ov23liWBndbGh85rEERd"
-# GITHUB_CLIENT_SECRET goes in wrangler secret
+# Static site only — all Pages Functions were removed along with data collection.
+# The former R2 bucket (UPLOADS / puaskill-upload), D1 database (DB / pua-uploads-db)
+# and GitHub OAuth vars are intentionally NOT bound here. If you are decommissioning
+# an existing deployment, delete the bucket, the database and the
+# GITHUB_CLIENT_SECRET / SESSION_SECRET secrets in the Cloudflare dashboard —
+# removing these bindings does not delete the stored data.

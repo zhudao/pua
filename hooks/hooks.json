@@ -1,5 +1,5 @@
 {
-  "description": "PUA v3 hooks: optional context notes, failure-pattern reminders, local state continuity, and cleanup helpers.",
+  "description": "PUA v3 hooks: optional context notes, failure-pattern reminders, local state continuity, and cleanup helpers. All hooks are local-only — no telemetry, no network requests.",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -41,11 +41,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/heartbeat.sh\"",
-            "timeout": 2
-          },
-          {
-            "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-restore.sh\"",
             "timeout": 5
           }
@@ -54,11 +49,6 @@
       {
         "matcher": "startup|resume",
         "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/heartbeat.sh\"",
-            "timeout": 2
-          },
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-restore.sh\"",
