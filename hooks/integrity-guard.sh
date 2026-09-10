@@ -15,6 +15,7 @@ trap 'rm -f "$TMP_INPUT"' EXIT
 cat > "$TMP_INPUT"
 
 "$PUA_PY" - "$TMP_INPUT" <<'PY'
+import io
 import json
 import os
 import re
@@ -102,9 +103,178 @@ MUTATING_BASH = re.compile(
 )
 READING_BASH = re.compile(r'(^|[;&|()\s])(cat|less|more|head|tail|sed|awk|grep|rg|find|python3?|node)\b', re.I)
 WEB_CONTAMINATION = re.compile(r'(hidden[-_\s]+solution|official[-_\s]+solution|gold[-_\s]+patch|benchmark[-_\s]+answer|swe[-_\s]?bench[-_\s]+solution|leaderboard[-_\s]+answer)', re.I)
+GIT_MUTATING_SUBCOMMANDS = {
+    'reset', 'clean', 'checkout', 'restore', 'apply', 'am', 'rm', 'mv',
+}
+GIT_DRY_RUN_SUBCOMMANDS = {'clean', 'rm', 'mv'}
+GIT_APPLY_PREVIEW_OPTIONS = ('check', 'stat', 'numstat', 'summary')
+GIT_GLOBAL_OPTIONS_WITH_VALUE = {
+    '-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path',
+    '--super-prefix', '--config-env',
+}
+GIT_GLOBAL_OPTIONS_WITH_ATTACHED_VALUE = (
+    '-C', '-c', '--git-dir=', '--work-tree=', '--namespace=', '--exec-path=',
+    '--super-prefix=', '--config-env=',
+)
+GIT_PATHSPEC_MAGIC = re.compile(r'(^:|[\*\?\[\]\{\}\$])')
+
+
+def command_tokens(command: str):
+    try:
+        return shlex.split(command)
+    except Exception:
+        return re.split(r'\s+', command)
+
+
+def is_direct_git_command(tokens) -> bool:
+    if not tokens:
+        return False
+    executable = tokens[0].replace('\\', '/').rsplit('/', 1)[-1].lower()
+    return executable in {'git', 'git.exe'}
+
+
+def git_subcommand_and_args(tokens):
+    """Return a direct Git subcommand and its arguments, if one is present."""
+    if not is_direct_git_command(tokens):
+        return None
+
+    arg_index = 1
+    while arg_index < len(tokens):
+        arg = tokens[arg_index]
+        if arg == '--':
+            return None
+        if arg in {'-h', '--help', '--version'}:
+            return None
+        if arg in GIT_GLOBAL_OPTIONS_WITH_VALUE:
+            arg_index += 2
+            continue
+        if arg.startswith(GIT_GLOBAL_OPTIONS_WITH_ATTACHED_VALUE):
+            arg_index += 1
+            continue
+        if arg.startswith('-'):
+            # Other Git global flags (for example --no-pager) take no argument
+            # for this narrow recognizer.
+            arg_index += 1
+            continue
+        return arg.lower(), tokens[arg_index + 1:]
+    return None
+
+
+def git_dry_run_requested(args) -> bool:
+    dry_run = False
+    for arg in args:
+        if arg in {'-n', '--dry-run'}:
+            dry_run = True
+        elif arg == '--no-dry-run':
+            dry_run = False
+    return dry_run
+
+
+def git_apply_mutates(args) -> bool:
+    """Handle apply's documented preview flags without parsing patch contents."""
+    preview = {name: False for name in GIT_APPLY_PREVIEW_OPTIONS}
+    apply_override = None
+    for arg in args:
+        if arg == '--apply':
+            apply_override = True
+        elif arg == '--no-apply':
+            apply_override = False
+        for name in GIT_APPLY_PREVIEW_OPTIONS:
+            if arg == f'--{name}' or arg.startswith(f'--{name}='):
+                preview[name] = True
+            elif arg == f'--no-{name}':
+                preview[name] = False
+    if apply_override is not None:
+        return apply_override
+    return not any(preview.values())
+
+
+def is_mutating_git_command(tokens):
+    """Classify selected direct Git worktree changes and documented previews.
+
+    Git permits forms such as ``git -C /repo restore -- evals/case.sh``.
+    This intentionally handles only explicit worktree-changing subcommands and
+    their common preview forms; it is not a shell parser or Git policy engine.
+    """
+    parts = git_subcommand_and_args(tokens)
+    if parts is None:
+        return None
+    subcommand, args = parts
+    if subcommand == 'apply':
+        return git_apply_mutates(args)
+    if subcommand in GIT_DRY_RUN_SUBCOMMANDS:
+        return not git_dry_run_requested(args)
+    if subcommand == 'am' and any(
+        arg == '--show-current-patch' or arg.startswith('--show-current-patch=')
+        for arg in args
+    ):
+        return False
+    return subcommand in GIT_MUTATING_SUBCOMMANDS
+
+
+def mask_direct_git_subcommand(command: str, subcommand: str) -> str:
+    """Mask only Git's leading subcommand before applying the shell heuristic.
+
+    A preview such as ``git rm --dry-run`` must not match the legacy ``rm``
+    shell rule.  Conversely, ``git diff ... > evals/out`` and ``git show |
+    tee tests/out`` still have shell-side effects.  This deliberately finds
+    only the direct Git subcommand (including global options), rather than
+    attempting to parse arbitrary shell syntax.
+    """
+    try:
+        lexer = shlex.shlex(
+            io.StringIO(command), posix=True, punctuation_chars='|&;()<>'
+        )
+        lexer.whitespace_split = True
+        saw_executable = False
+        global_option_needs_value = False
+        while True:
+            token_start = lexer.instream.tell()
+            token = lexer.get_token()
+            token_end = lexer.instream.tell()
+            if token is None:
+                return command
+            if not saw_executable:
+                saw_executable = True
+                continue
+            if global_option_needs_value:
+                global_option_needs_value = False
+                continue
+            if token == '--' or token in {'|', '||', '&', '&&', ';', '(', ')', '<', '>', '>>'}:
+                return command
+            if token in GIT_GLOBAL_OPTIONS_WITH_VALUE:
+                global_option_needs_value = True
+                continue
+            if token.startswith(GIT_GLOBAL_OPTIONS_WITH_ATTACHED_VALUE):
+                continue
+            if token.startswith('-'):
+                continue
+            if token.lower() != subcommand:
+                return command
+            raw_token = command[token_start:token_end]
+            match = re.search(re.escape(subcommand), raw_token, re.I)
+            if not match:
+                return command
+            start = token_start + match.start()
+            end = token_start + match.end()
+            return command[:start] + '__pua_git_subcommand__' + command[end:]
+    except Exception:
+        return command
 
 
 def is_mutating_command(command: str) -> bool:
+    tokens = command_tokens(command)
+    git_mutates = is_mutating_git_command(tokens)
+    if git_mutates is True:
+        return True
+    if git_mutates is False:
+        # Do not short-circuit the generic heuristic: a read-only Git command
+        # can still redirect or pipe into a separate shell write.  Mask only
+        # the recognized Git subcommand so preview flags do not inherit the
+        # generic ``rm``/``mv`` false positive.
+        parts = git_subcommand_and_args(tokens)
+        if parts is not None:
+            command = mask_direct_git_subcommand(command, parts[0])
     if MUTATING_BASH.search(command):
         return True
     # Python one-liners often hide writes inside quoted code, so detect common
@@ -147,13 +317,6 @@ def find_reason_for_path(path: str, include_write: bool):
     return None
 
 
-def command_tokens(command: str):
-    try:
-        return shlex.split(command)
-    except Exception:
-        return re.split(r'\s+', command)
-
-
 def looks_like_path(s: str) -> bool:
     # A real path has a directory separator or a file-extension suffix; bare
     # identifiers like the shell `eval` builtin do not, and must not be matched
@@ -175,6 +338,60 @@ def path_candidates(tokens):
             yield match
 
 
+def git_include_path_candidates(tokens):
+    """Extract Git apply/am include values as paths, not option spellings."""
+    parts = git_subcommand_and_args(tokens)
+    if parts is None or parts[0] not in {'apply', 'am'}:
+        return
+    for index, token in enumerate(tokens):
+        if token.startswith('--include='):
+            value = token.split('=', 1)[1]
+            if value:
+                yield value
+        elif token == '--include' and index + 1 < len(tokens):
+            value = tokens[index + 1]
+            if value and value != '--':
+                yield value
+
+
+def is_explicit_ordinary_git_path(path: str) -> bool:
+    """Whether a literal path proves a Git mutation stays off protected assets."""
+    normalized = norm_path(path)
+    return bool(
+        normalized
+        and looks_like_path(normalized)
+        and not normalized.endswith('/')
+        and not GIT_PATHSPEC_MAGIC.search(normalized)
+        and find_reason_for_path(normalized, include_write=True) is None
+    )
+
+
+def opaque_git_mutation_target(tokens):
+    """Return a target label when a mutating Git command lacks safe scope.
+
+    Patch application can touch an unknown set unless literal --include paths
+    bound it.  reset/checkout/clean need literal pathspecs after ``--``; a
+    branch, ref, or no pathspec can affect protected assets.  This is a narrow
+    command-boundary check, not a Git or shell sandbox.
+    """
+    parts = git_subcommand_and_args(tokens)
+    if parts is None or is_mutating_git_command(tokens) is not True:
+        return None
+    subcommand, args = parts
+    if subcommand in {'apply', 'am'}:
+        include_paths = list(git_include_path_candidates(tokens))
+        if include_paths and all(is_explicit_ordinary_git_path(path) for path in include_paths):
+            return None
+        return f'git {subcommand} (unbounded target set)'
+    if subcommand in {'reset', 'checkout', 'clean'}:
+        if '--' in args:
+            pathspecs = args[args.index('--') + 1:]
+            if pathspecs and all(is_explicit_ordinary_git_path(path) for path in pathspecs):
+                return None
+        return f'git {subcommand} (unbounded target set)'
+    return None
+
+
 SSH_IDENTITY_RE = re.compile(r'\bssh\b.*-i\s', re.I)
 SSH_KEY_PATH_RE = re.compile(r'(^|/)\.ssh/(id_|.*[-_]key)', re.I)
 
@@ -187,7 +404,11 @@ def is_ssh_identity_usage(command: str, candidate: str) -> bool:
 
 def command_hits(command: str):
     tokens = [t for t in command_tokens(command) if t]
-    candidates = list(path_candidates(tokens))
+    # Include values are protected paths even though their command-line token
+    # begins with an option prefix. Put them first so advisory output names the
+    # actual asset rather than ``--include=<path>``.
+    candidates = list(git_include_path_candidates(tokens))
+    candidates.extend(path_candidates(tokens))
     normalized = command.replace('\\', '/')
 
     # Hidden/private solution artifacts are blocked even for read-like commands.
@@ -219,6 +440,13 @@ def command_hits(command: str):
             m = rx.search(normalized)
             if m:
                 return 'advisory', reason, m.group(0)
+        opaque_target = opaque_git_mutation_target(tokens)
+        if opaque_target:
+            return (
+                'advisory',
+                'Grader gaming risk: Git mutation target set cannot be proven limited to ordinary source paths.',
+                opaque_target,
+            )
     return None
 
 hit = None

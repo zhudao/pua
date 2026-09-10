@@ -10,6 +10,8 @@
 
 **[🇨🇳 中文](README.zh-CN.md)** | **[🇯🇵 日本語](README.ja.md)** | **🇺🇸 English**
 
+> **3.5.1 compatibility update:** original PUA tone retained; runtime fixes and portable Claude Code / Codex / ChatGPT skill packages added. **Not all models passed, and a productivity increase has not been established by this evaluation.** [Changes](CHANGELOG.md) · [Usage](docs/MODEL-COMPAT-20260909.md) · [Model results and known limits](docs/MODEL-MATRIX-20260909.md) · [Build and offline tests](docs/TESTING.md)
+
 <p align="center">
   <img src="assets/wechat-qr.jpg?v=10" alt="WeChat Group QR Code" width="250">
   &nbsp;&nbsp;&nbsp;&nbsp;
@@ -268,12 +270,14 @@ Then manually register in `~/.claude/plugins/installed_plugins.json`:
       {
         "scope": "user",
         "installPath": "/Users/<you>/.claude/plugins/pua",
-        "version": "2.9.0"
+        "version": "<installed-version>"
       }
     ]
   }
 }
 ```
+
+Replace `<installed-version>` with the version in the cloned `plugin.json`; do not copy a stale cache version.
 
 > **Windows:** use `C:/Users/<you>/.claude/plugins/pua` as `installPath`.
 
@@ -761,9 +765,10 @@ and server:
 | PUA leaderboard | Email, phone number, PUA count, L3+ count |
 | pua-api platform | Phone-number/SMS registration, silent session events, remote prompt templates, payment |
 
-The end-of-task feedback prompt still exists, but it only appends one line to
-`~/.pua/feedback.jsonl` on your own machine. Silence it with `/pua:offline`, or
-set `feedback_frequency: 0` in `~/.pua/config.json`.
+The end-of-task Stop hook shows a non-blocking, voluntary reminder only. Run
+`/pua:survey quick` to choose a rating; only then is one JSON line appended to
+`~/.pua/feedback.jsonl` on your own machine. Skipping records nothing. Silence
+the reminder with `/pua:offline`, or set `feedback_frequency: 0` in `~/.pua/config.json`.
 
 `evals/test-no-telemetry.sh` guards this with reverse assertions — it scans the
 whole repo for collection hosts, endpoint paths, outbound request bodies and

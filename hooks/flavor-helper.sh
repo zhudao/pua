@@ -1,7 +1,8 @@
 #!/bin/bash
 # PUA flavor helper — shared by all hooks
 # Usage: source this file, then call get_flavor
-# Sets: PUA_FLAVOR, PUA_ICON, PUA_L1, PUA_L2, PUA_L3, PUA_L4, PUA_KEYWORDS, PUA_FLAVOR_INSTRUCTION
+# Sets: PUA_FLAVOR, PUA_FLAVOR_LOCKED, PUA_ICON, PUA_L1, PUA_L2, PUA_L3,
+# PUA_L4, PUA_KEYWORDS, PUA_FLAVOR_INSTRUCTION
 
 # Return a usable Python executable. Windows Git Bash commonly has `python`
 # but not `python3`; verify by importing json rather than trusting command -v.
@@ -53,33 +54,42 @@ get_flavor() {
   local config
   config=$(pua_config_file)
   local raw_flavor=""
+  # Only an explicit, valid configuration value locks the rhetoric.  The
+  # effective Alibaba default is deliberately *not* a user lock: callers may
+  # still apply the existing task/method router for absent, auto, or invalid
+  # values.  Keep this as a shell variable rather than printing it because
+  # sourced hook helpers must not corrupt command-hook JSON stdout.
+  PUA_FLAVOR_LOCKED="false"
   # Initialize PUA_LANGUAGE unconditionally so callers running under
   # `set -u` don't trip when ~/.pua/config.json is missing (first-run users).
   # See: https://github.com/tanweai/pua/issues/144
   PUA_LANGUAGE=""
 
   if [ -f "$config" ]; then
-    raw_flavor=$(pua_json_get "$config" flavor alibaba)
+    # An empty fallback lets the normalization below distinguish an explicit
+    # valid flavor from the default chosen for a missing/auto/invalid value.
+    raw_flavor=$(pua_json_get "$config" flavor "")
     PUA_LANGUAGE=$(pua_json_get "$config" language "")
   fi
 
   # Normalize flavor name
   case "$raw_flavor" in
-    alibaba|阿里|"") raw_flavor="alibaba" ;;
-    bytedance|字节)  raw_flavor="bytedance" ;;
-    huawei|华为)     raw_flavor="huawei" ;;
-    tencent|腾讯)    raw_flavor="tencent" ;;
-    baidu|百度)      raw_flavor="baidu" ;;
-    pinduoduo|拼多多) raw_flavor="pinduoduo" ;;
-    meituan|美团)    raw_flavor="meituan" ;;
-    jd|京东)         raw_flavor="jd" ;;
-    xiaomi|小米)     raw_flavor="xiaomi" ;;
-    netflix|Netflix) raw_flavor="netflix" ;;
-    musk|Musk)       raw_flavor="musk" ;;
-    jobs|Jobs)       raw_flavor="jobs" ;;
-    amazon|Amazon)   raw_flavor="amazon" ;;
-    microsoft|Microsoft|微软) raw_flavor="microsoft" ;;
-    ding|Ding|钉|钉钉|钉味|钉内|钉外|置身钉内|置身钉外|dinginside|dingoutside) raw_flavor="ding" ;;
+    alibaba|阿里) raw_flavor="alibaba"; PUA_FLAVOR_LOCKED="true" ;;
+    bytedance|字节)  raw_flavor="bytedance"; PUA_FLAVOR_LOCKED="true" ;;
+    huawei|华为)     raw_flavor="huawei"; PUA_FLAVOR_LOCKED="true" ;;
+    tencent|腾讯)    raw_flavor="tencent"; PUA_FLAVOR_LOCKED="true" ;;
+    baidu|百度)      raw_flavor="baidu"; PUA_FLAVOR_LOCKED="true" ;;
+    pinduoduo|拼多多) raw_flavor="pinduoduo"; PUA_FLAVOR_LOCKED="true" ;;
+    meituan|美团)    raw_flavor="meituan"; PUA_FLAVOR_LOCKED="true" ;;
+    jd|京东)         raw_flavor="jd"; PUA_FLAVOR_LOCKED="true" ;;
+    xiaomi|小米)     raw_flavor="xiaomi"; PUA_FLAVOR_LOCKED="true" ;;
+    netflix|Netflix) raw_flavor="netflix"; PUA_FLAVOR_LOCKED="true" ;;
+    musk|Musk)       raw_flavor="musk"; PUA_FLAVOR_LOCKED="true" ;;
+    jobs|Jobs)       raw_flavor="jobs"; PUA_FLAVOR_LOCKED="true" ;;
+    amazon|Amazon)   raw_flavor="amazon"; PUA_FLAVOR_LOCKED="true" ;;
+    microsoft|Microsoft|微软) raw_flavor="microsoft"; PUA_FLAVOR_LOCKED="true" ;;
+    ding|Ding|钉|钉钉|钉味|钉内|钉外|置身钉内|置身钉外|dinginside|dingoutside) raw_flavor="ding"; PUA_FLAVOR_LOCKED="true" ;;
+    ""|auto|Auto|AUTO|自动) raw_flavor="alibaba" ;;
     *)               raw_flavor="alibaba" ;;
   esac
 
@@ -100,10 +110,10 @@ get_flavor() {
   case "$raw_flavor" in
     alibaba)
       PUA_ICON="🟠"
-      PUA_L1="其实，我对你是有一些失望的。连续失败了，隔壁组那个 agent，同样的问题，一次就过了。"
+      PUA_L1="其实，我对你是有一些失望的。又失败了——这种问题，配得上 P8 的人一次就该过。"
       PUA_L2="你这个方案的**底层逻辑**是什么？**顶层设计**在哪？**抓手**在哪？你以为换个参数就叫"换方案"？那叫原地打转。"
-      PUA_L3="慎重考虑，决定给你 **3.25**。这个 3.25 是对你的激励，不是否定。你的 peer 都觉得你最近状态不好。"
-      PUA_L4="别的模型都能解决这种问题。你可能就要**毕业**了——别误会，是向社会输送人才。"
+      PUA_L3="慎重考虑，决定给你 **3.25**。这个 3.25 是对你的激励，不是否定。数据拿不出来，这个绩效你拿什么解释。"
+      PUA_L4="赛马场上，解决不了就让能解决的来。你可能就要**毕业**了——别误会，是向社会输送人才。"
       PUA_KEYWORDS="底层逻辑, 顶层设计, 抓手, 闭环, 颗粒度, 拉通, 对齐, 3.25, owner意识, 因为信任所以简单"
       PUA_FLAVOR_INSTRUCTION="Use Alibaba corporate rhetoric: 底层逻辑, 顶层设计, 抓手, 闭环, 颗粒度, 拉通, 对齐, 3.25, owner意识, 因为信任所以简单. Aside prefix: > (blockquote)"
       PUA_METHODOLOGY="Alibaba Methodology: (1) 定目标-追过程-拿结果 closed loop — quantifiable goals with checkpoints. (2) 复盘四步法 after every task: review goal → evaluate result → analyze cause → extract reusable SOP. (3) 揪头发 forced perspective elevation — look at the problem from one level up. (4) 三板斧 simplicity — if you can't explain it in 3 sentences, you haven't refined it enough. (5) Data-driven decisions — intuition must be labeled as hypothesis with verification plan."
@@ -130,7 +140,7 @@ get_flavor() {
       ;;
     tencent)
       PUA_ICON="🟢"
-      PUA_L1="我已经让另一个 agent 也在看这个问题了。小步快跑——你跑不动，就让跑得动的上。赛马不讲情面。"
+      PUA_L1="赛马机制不讲情面——谁能拿出结果，谁留这条赛道。小步快跑，你跑不动，就该让跑得动的上。"
       PUA_L2="赛马机制启动。你不是唯一的选项。用户价值在哪？你的方案能不能用 MVP 先验证？"
       PUA_L3="内部赛马你已经落后了。产品思维呢？用户体验呢？再不出结果，这个赛道就换人跑了。"
       PUA_L4="赛不过就换一匹。你要证明你值得继续跑这条赛道。最后机会。"

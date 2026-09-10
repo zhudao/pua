@@ -82,8 +82,8 @@ for name, spec in expected.items():
     if fm.get('name') != name:
         errors.append(f'{spec["file"]} name mismatch: {fm.get("name")!r}')
     desc = fm.get('description', '')
-    if 'Use this agent when' not in desc:
-        errors.append(f'{spec["file"]} description must start with concrete trigger phrase')
+    if not desc or not re.search(r'Use this agent when|按任务|审查|审核|验收|边界|守卫|治理', desc):
+        errors.append(f'{spec["file"]} description must identify its concrete role (Chinese or English)')
     tools = tool_set(fm.get('tools', ''))
     missing_tools = spec['must_have_tools'] - tools
     forbidden_tools = spec['must_not_tools'] & tools
@@ -108,8 +108,9 @@ for term in ['四代理拓扑', 'pua-policy-guardian', 'pua-action-executor', 'p
 for term in ['四代理上下文隔离拓扑（v3.2.7）', 'Task Contract', 'final verifier_status', '文化叙事绑定', '上下文隔离降低叙事污染']:
     if term not in ref:
         errors.append(f'harness-governance.md missing topology term: {term}')
-if 'Multi-Agent Governance Topology' not in session:
-    errors.append('session-restore missing multi-agent topology injection')
+# Optional governance roles must not be force-spawned by SessionStart.
+if 'tool observations' not in session or 'acceptance criteria' not in session:
+    errors.append('SessionStart must distinguish observations from acceptance')
 
 if errors:
     print('=== Agent governance FAILED ===')

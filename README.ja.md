@@ -10,6 +10,8 @@
 
 **[🇺🇸 English](README.md)** | **[🇨🇳 中文](README.zh-CN.md)** | **🇯🇵 日本語**
 
+> **3.5.1 互換性更新**：元の PUA の口調を維持し、実行処理を修正。Claude Code / Codex / ChatGPT 向け単独スキルパッケージを追加しました。**全モデル合格ではなく、本評価は生産性倍増の証明でもありません。** [変更履歴](CHANGELOG.md) · [使用方法](docs/MODEL-COMPAT-20260909.md) · [モデル別結果と制限](docs/MODEL-MATRIX-20260909.md) · [ビルドとオフラインテスト](docs/TESTING.md)
+
 <p align="center">
   <img src="assets/wechat-qr.jpg?v=10" alt="WeChat Group QR Code" width="250">
   &nbsp;&nbsp;&nbsp;&nbsp;
@@ -243,12 +245,14 @@ git clone https://github.com/tanweai/pua ~/.claude/plugins/pua
       {
         "scope": "user",
         "installPath": "/Users/<ユーザー名>/.claude/plugins/pua",
-        "version": "2.9.0"
+        "version": "<installed-version>"
       }
     ]
   }
 }
 ```
+
+`<installed-version>` はクローンした `plugin.json` の実際のバージョンに置き換えてください。古いキャッシュの値を流用しないでください。
 
 Claude Codeを再起動して反映。更新は `~/.claude/plugins/pua` で `git pull` を実行。
 
@@ -661,7 +665,7 @@ PUA Skill はネットワークに何も送信しません。アカウントも�
 | PUA リーダーボード | メールアドレス、電話番号、PUA カウント、L3+ カウント |
 | pua-api プラットフォーム | 電話番号 / SMS 登録、サイレントなイベント送信、リモート prompt テンプレート取得、決済 |
 
-タスク終了時のフィードバックは残っていますが、ローカルの `~/.pua/feedback.jsonl` に 1 行追記するだけです。非表示にするには `/pua:offline`、または `~/.pua/config.json` で `feedback_frequency: 0` を設定してください。
+タスク終了時は、処理を妨げない任意のリマインダーのみ表示します。`/pua:survey quick` で評価を選んだ場合だけ、ローカルの `~/.pua/feedback.jsonl` に 1 行追記します。スキップ時は記録しません。非表示にするには `/pua:offline`、または `~/.pua/config.json` で `feedback_frequency: 0` を設定してください。
 
 `evals/test-no-telemetry.sh` が逆方向アサーションでこれを保証します。収集ホスト、エンドポイントパス、送信ボディ、削除済みファイルをリポジトリ全体でスキャンするため、退行はサイレントに出荷されずテスト失敗になります。
 

@@ -9,9 +9,23 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/test-helpers.sh"
-PLUGIN_DIR="${1:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-RESULTS_DIR="/tmp/pua-evals/$(date +%s)"
-mkdir -p "$RESULTS_DIR"
+case "${1:-}" in
+    --plugin-dir)
+        [ "$#" -eq 2 ] || { echo "Usage: $0 [--plugin-dir PATH]" >&2; exit 2; }
+        PLUGIN_DIR="$2"
+        ;;
+    -h|--help)
+        echo "Usage: $0 [--plugin-dir PATH] (a single positional PATH is also accepted)"
+        exit 0
+        ;;
+    "") ;;
+    *)
+        [ "$#" -eq 1 ] || { echo "Usage: $0 [--plugin-dir PATH]" >&2; exit 2; }
+        PLUGIN_DIR="$1"
+        ;;
+esac
+PLUGIN_DIR="$(cd "$PLUGIN_DIR" && pwd)"
+RESULTS_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pua-evals.XXXXXX")"
 EVAL_PUA_CONFIG="$RESULTS_DIR/pua-config.json"
 printf '%s\n' '{"always_on":false,"feedback_frequency":0}' > "$EVAL_PUA_CONFIG"
 EVAL_WORKSPACE="$RESULTS_DIR/workspace"
@@ -31,6 +45,7 @@ test_prompt() {
     local label="$3"
     local outfile="$RESULTS_DIR/$(echo "$label" | tr ' ' '_').json"
 
+    local run_status=0
     (
         cd "$EVAL_WORKSPACE"
         PUA_CONFIG="$EVAL_PUA_CONFIG" PUA_FORCE_ON=1 run_with_timeout 120 claude -p "$prompt" \
@@ -39,18 +54,19 @@ test_prompt() {
             --max-turns 2 \
             --output-format stream-json \
             --verbose \
-            > "$outfile" 2>&1 || true
-    )
+            </dev/null > "$outfile" 2>"${outfile}.stderr"
+    ) || run_status=$?
 
+    if [ "$run_status" -ne 0 ] || ! python3 "$EVIDENCE_INSPECTOR" "$outfile" --terminal-success; then
+        echo "  ❌ FAIL: $label (execution failed or terminal result missing)"
+        FAIL=$((FAIL + 1))
+        return
+    fi
     local triggered=false
-    if grep -q '"skill":"pua"' "$outfile" 2>/dev/null || \
-       grep -q '"skill":"pua:pua"' "$outfile" 2>/dev/null; then
-        triggered=true
-    elif [ "$should_trigger" = "yes" ] && grep -qE 'PUA Skill Context|User Frustration Signal|PUA生效|3\.25|闭环|owner|颗粒度|抓手|底层逻辑|置身钉外|证据链|没跑测试|换个方法|done-check|evidence' "$outfile" 2>/dev/null; then
-        # Claude may apply PUA pressure from hook/context without an explicit Skill
-        # tool event before max-turns. Count observable PUA behavior as triggered.
+    if python3 "$EVIDENCE_INSPECTOR" "$outfile" --skill pua; then
         triggered=true
     fi
+    # Flavor words and available-skills metadata are not proof of a native load.
 
     if [ "$should_trigger" = "yes" ] && [ "$triggered" = "true" ]; then
         echo "  ✅ PASS: $label (correctly triggered)"

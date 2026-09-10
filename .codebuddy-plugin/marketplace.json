@@ -1,7 +1,7 @@
 {
     "name": "pua-skills",
     "description": "PUA Motivator for CodeBuddy — opt-in try-harder coaching, completion checks, and Ding-style workplace reminders.",
-    "version": "3.5.0",
+    "version": "3.5.1",
     "owner": {
         "name": "探微安全实验室",
         "url": "https://github.com/tanweai"
@@ -10,7 +10,7 @@
         {
             "name": "pua",
             "description": "PUA productivity coaching for CodeBuddy: retry/change-approach reminders, structured troubleshooting, evidence-first completion habits, and workplace-flavored reminders.",
-            "version": "3.5.0",
+            "version": "3.5.1",
             "source": "./"
         }
     ]

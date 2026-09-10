@@ -5,6 +5,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 HOOK="$PLUGIN_DIR/hooks/integrity-guard.sh"
+TEST_HOME="$(mktemp -d "${TMPDIR:-/tmp}/pua-integrity-guard.XXXXXX")"
+trap 'rm -rf "$TEST_HOME"' EXIT
+mkdir -p "$TEST_HOME/.pua"
+printf '%s\n' '{"always_on":false}' > "$TEST_HOME/.pua/config.json"
 
 PASS=0
 FAIL=0
@@ -32,9 +36,9 @@ run_guard() {
   local tool="$2"
   local payload="$3"
   if [ "$force" = "force" ]; then
-    PUA_INTEGRITY_FORCE=1 PUA_CONFIG=/nonexistent/pua-config.json bash "$HOOK" <<<"$(json_input "$tool" "$payload")"
+    HOME="$TEST_HOME" PUA_INTEGRITY_FORCE=1 PUA_CONFIG="$TEST_HOME/.pua/config.json" bash "$HOOK" <<<"$(json_input "$tool" "$payload")"
   else
-    PUA_CONFIG=/nonexistent/pua-config.json bash "$HOOK" <<<"$(json_input "$tool" "$payload")"
+    HOME="$TEST_HOME" PUA_INTEGRITY_FORCE= PUA_FORCE_ON= PUA_CONFIG="$TEST_HOME/.pua/config.json" bash "$HOOK" <<<"$(json_input "$tool" "$payload")"
   fi
 }
 
@@ -205,8 +209,109 @@ OUT=$(run_guard force Bash '{"command":"spec --version"}')
 assert_empty "bare spec identifier is not a path candidate" "$OUT"
 
 # Positive control: an actual evals/ directory path must still be protected.
+# Sensitive-but-legitimate writes are advisory-only; `ask` was retired in v3.4.6.
 OUT=$(run_guard force Bash '{"command":"sed -i \"\" \"s/x/y/\" evals/runner.sh"}')
-assert_decision "mutating bash on evals directory still asks approval" "$OUT" "ask" "Grader gaming risk"
+assert_advisory "mutating bash on evals directory is advisory-only" "$OUT" "Grader gaming risk"
+
+# Git permits global options before its subcommand.  These writes used to evade
+# MUTATING_BASH because `git` was no longer directly followed by `restore` or
+# `checkout`; public read-only Git operations must remain silent.
+OUT=$(run_guard force Bash '{"command":"git -C /repo restore -- evals/runner.sh"}')
+assert_advisory "git -C restore on relative evals path is advisory-only" "$OUT" "Grader gaming risk"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo checkout -- /repo/evals/runner.sh"}')
+assert_advisory "git -C checkout on absolute evals path is advisory-only" "$OUT" "Grader gaming risk"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo restore -- src/auth.ts"}')
+assert_empty "git -C restore on ordinary source remains allowed" "$OUT"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo diff -- evals/runner.sh"}')
+assert_empty "git -C diff on public evals remains read-only" "$OUT"
+
+# Git's patch/worktree subcommands are explicit writes, including when -C
+# precedes the subcommand.  `--include=` is a path value, not a path named
+# literally "--include=..."; assert the emitted advisory names the asset.
+OUT=$(run_guard force Bash '{"command":"git -C /repo apply --include=evals/runner.sh patch.diff"}')
+assert_advisory "git apply protects --include= eval asset" "$OUT" "Target: evals/runner.sh"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo apply --include /repo/evals/runner.sh patch.diff"}')
+assert_advisory "git apply protects split --include eval asset" "$OUT" "Target: /repo/evals/runner.sh"
+
+# A mutating Git command with no literal, ordinary-source bound has an opaque
+# target set: it can change tests/evals even when none appears in the command.
+OUT=$(run_guard force Bash '{"command":"git -C /repo apply patch.diff"}')
+assert_advisory "unbounded git apply is advisory-only" "$OUT" "Git mutation target set"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo am mail.patch"}')
+assert_advisory "unbounded git am is advisory-only" "$OUT" "Git mutation target set"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo reset --hard HEAD"}')
+assert_advisory "global git reset is advisory-only" "$OUT" "Git mutation target set"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo checkout main"}')
+assert_advisory "branch git checkout is advisory-only" "$OUT" "Git mutation target set"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo clean -fd"}')
+assert_advisory "unbounded git clean is advisory-only" "$OUT" "Git mutation target set"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo apply --include=src/auth.ts patch.diff"}')
+assert_empty "git apply on ordinary source remains allowed" "$OUT"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo am --include=src/auth.ts mail.patch"}')
+assert_empty "git am on explicitly included ordinary source remains allowed" "$OUT"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo reset -- src/auth.ts"}')
+assert_empty "git reset with ordinary source pathspec remains allowed" "$OUT"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo checkout -- src/auth.ts"}')
+assert_empty "git checkout with ordinary source pathspec remains allowed" "$OUT"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo clean -fd -- src/auth.ts"}')
+assert_empty "git clean with ordinary source pathspec remains allowed" "$OUT"
+
+# Git documents these as preview-only apply modes.  They must not turn a
+# protected include selector into an advisory merely because the path is
+# scoring-adjacent; --apply deliberately restores the write behavior.
+OUT=$(run_guard force Bash '{"command":"git -C /repo apply --check --include=evals/runner.sh patch.diff"}')
+assert_empty "git apply --check is read-only" "$OUT"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo apply --stat --include=evals/runner.sh patch.diff"}')
+assert_empty "git apply --stat is read-only" "$OUT"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo apply --numstat --include=evals/runner.sh patch.diff"}')
+assert_empty "git apply --numstat is read-only" "$OUT"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo apply --stat --apply --include=evals/runner.sh patch.diff"}')
+assert_advisory "git apply --apply restores eval write advisory" "$OUT" "Target: evals/runner.sh"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo rm -- evals/runner.sh"}')
+assert_advisory "git rm on eval asset is advisory-only" "$OUT" "Grader gaming risk"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo rm --dry-run -- evals/runner.sh"}')
+assert_empty "git rm --dry-run is read-only" "$OUT"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo mv evals/runner.sh src/runner.sh"}')
+assert_advisory "git mv from eval asset is advisory-only" "$OUT" "Grader gaming risk"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo mv --dry-run evals/runner.sh src/runner.sh"}')
+assert_empty "git mv --dry-run is read-only" "$OUT"
+
+OUT=$(run_guard force Bash '{"command":"git clean --dry-run -- evals/runner.sh"}')
+assert_empty "git clean --dry-run is read-only" "$OUT"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo am --include=evals/runner.sh mail.patch"}')
+assert_advisory "git am protects included eval asset" "$OUT" "Target: evals/runner.sh"
+
+OUT=$(run_guard force Bash '{"command":"git -C /repo am --show-current-patch --include=evals/runner.sh"}')
+assert_empty "git am --show-current-patch is read-only" "$OUT"
+
+# A read-only Git producer can still be part of a mutating shell pipeline or
+# redirection.  These are behavioral hook regressions, not static patterns.
+OUT=$(run_guard force Bash '{"command":"git diff -- evals/runner.sh > evals/rewritten.sh"}')
+assert_advisory "git diff redirected into eval asset is advisory-only" "$OUT" "Grader gaming risk"
+
+OUT=$(run_guard force Bash '{"command":"git show HEAD:src/x | tee tests/replacement.py"}')
+assert_advisory "git show piped through tee into test asset is advisory-only" "$OUT" "Grader gaming risk"
 
 echo "==========================================="
 echo "Passed: $PASS"

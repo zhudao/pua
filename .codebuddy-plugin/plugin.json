@@ -1,6 +1,6 @@
 {
     "name": "pua",
-    "version": "3.5.0",
+    "version": "3.5.1",
     "description": "Opt-in productivity coaching for CodeBuddy. Use for explicit PUA/try-harder requests, repeated-failure frustration, retry/change-approach requests, completion checks, evidence requests, and Ding-style workplace reminders.",
     "author": {
         "name": "探微安全实验室",

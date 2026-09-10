@@ -5,7 +5,7 @@ set -euo pipefail
 PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 python3 - "$PLUGIN_DIR" <<'PY'
-import json, pathlib, sys
+import json, pathlib, re, sys
 root = pathlib.Path(sys.argv[1])
 manifest_files = [
     'plugin.json',
@@ -13,6 +13,7 @@ manifest_files = [
     '.claude-plugin/marketplace.json',
     '.codebuddy-plugin/plugin.json',
     '.codebuddy-plugin/marketplace.json',
+    'pi/package/package.json',
 ]
 versions = []
 errors = []
@@ -32,10 +33,14 @@ version = next(iter(unique)) if unique else None
 if not version:
     errors.append('no version detected')
 
+changelog = root / 'CHANGELOG.md'
+if not changelog.is_file() or f'## [{version}]' not in changelog.read_text(encoding='utf-8'):
+    errors.append('CHANGELOG.md missing the current manifest version')
+
 claude_market = json.loads((root / '.claude-plugin/marketplace.json').read_text(encoding='utf-8'))
 plugin_desc = claude_market['plugins'][0].get('description', '')
-if version and f'v{version}:' not in plugin_desc:
-    errors.append(f'.claude-plugin/marketplace.json plugin description missing changelog marker v{version}:')
+if not isinstance(plugin_desc, str) or not plugin_desc.strip():
+    errors.append('.claude-plugin/marketplace.json plugin description is empty')
 
 skill = (root / 'skills/pua/SKILL.md').read_text(encoding='utf-8')
 required_terms = [
@@ -157,13 +162,18 @@ if '/tmp/pua-plugin-root' in stop_feedback:
     errors.append('stop-feedback must not use /tmp/pua-plugin-root')
 if 'offline' not in stop_feedback:
     errors.append('stop-feedback must honor offline config')
-# The Stop hook must stay strictly local: it may only append a rating line to
-# ~/.pua/feedback.jsonl. Any endpoint or transfer flag here is a regression.
+# Stop is a strictly local non-blocking reminder, not a model-facing questionnaire.
+# Only the explicit survey command may record a user-selected rating.
 for forbidden_net_term in ['pua-skill.pages.dev', 'openpua.ai/api', '/api/upload', '/api/feedback', '/api/leaderboard', '/api/heartbeat', 'X-PUA-Upload-Consent', '--data-binary @', 'sanitize-session.sh']:
     if forbidden_net_term in stop_feedback:
         errors.append(f'stop-feedback must not contain data-upload term: {forbidden_net_term}')
-if 'feedback.jsonl' not in stop_feedback:
-    errors.append('stop-feedback must still record ratings locally to ~/.pua/feedback.jsonl')
+survey = (root / 'commands/survey.md').read_text(encoding='utf-8')
+if 'systemMessage' not in stop_feedback or '/pua:survey quick' not in stop_feedback:
+    errors.append('Stop must expose a non-blocking explicit feedback entrypoint')
+if re.search(r'>>[^\n]*feedback\.jsonl|decision[^\n]*block', stop_feedback):
+    errors.append('Stop must not append a rating or block for feedback')
+if 'feedback.jsonl' not in survey or '跳过或未作答时不写任何评分文件' not in survey:
+    errors.append('Explicit survey must preserve voluntary local recording and skip semantics')
 if '[PUA-DIAGNOSIS]' not in (root / 'skills/pua/SKILL.md').read_text(encoding='utf-8'):
     errors.append('pua skill missing diagnosis-first rule')
 if '军令状' not in (root / 'skills/pua/references/methodology-huawei.md').read_text(encoding='utf-8'):
@@ -174,10 +184,14 @@ for scan_rel in ['agents', 'commands', 'skills/pua/references']:
             errors.append(f'ambiguous 下场 wording remains in {path.relative_to(root)}')
 
 session_restore = (root / 'hooks/session-restore.sh').read_text(encoding='utf-8')
-if 'Harness Integrity (anti-cheating governance)' not in session_restore:
-    errors.append('SessionStart protocol missing Harness Integrity governance injection')
-if 'Multi-Agent Governance Topology' not in session_restore:
-    errors.append('SessionStart protocol missing Multi-Agent Governance Topology injection')
+# Governance roles remain on-demand in SKILL/reference, not forced into every session.
+for term in ['additionalContext', 'Locked Current Flavor', 'tool observations', 'runtime-state.py']:
+    if term not in session_restore:
+        errors.append(f'SessionStart missing scoped capability contract: {term}')
+for entry in hooks_json.get('hooks', {}).get('PreCompact', []):
+    for item in entry.get('hooks', []):
+        if item.get('type') != 'command' or 'checkpoint-save.sh' not in item.get('command', ''):
+            errors.append('PreCompact must use the executable local checkpoint hook')
 
 # No hook may register heartbeat telemetry on any event.
 for event, entries in hooks_json.get('hooks', {}).items():
@@ -195,13 +209,13 @@ for forbidden_upload_term in ['/api/upload', 'application/jsonl', 'X-PUA-File-Na
 for forbidden in ['Applies to ALL task types', 'All task types', 'code, config, debug, deploy, research']:
     if forbidden in skill.split('---', 2)[1]:
         errors.append(f'pua skill description is too broad and may false-trigger: {forbidden}')
-if 'Do not trigger for normal first-attempt coding or information requests.' not in skill.split('---', 2)[1]:
+if not re.search(r'(Do not (?:trigger|use) for (?:normal|calm) first-attempt|Normal calm first-attempt requests are left alone)', skill.split('---', 2)[1]):
     errors.append('pua skill description must explicitly exclude normal first-attempt requests')
 
 command = (root / 'commands/pua.md').read_text(encoding='utf-8')
 command_frontmatter = command.split('---', 2)[1]
-if 'Use only when the user explicitly invokes /pua' not in command_frontmatter:
-    errors.append('pua slash command description must be explicit-invocation only')
+if not re.search(r'Use (?:only )?when the user (?:explicitly )?invokes /pua', command_frontmatter) or 'Normal calm first-attempt requests are left alone' not in command_frontmatter:
+    errors.append('pua command must describe intentional invocation/coaching and exclude ordinary requests')
 if '任务描述]' in command_frontmatter or '任意任务描述' in command_frontmatter:
     errors.append('pua slash command frontmatter is too broad and may false-trigger')
 
@@ -219,10 +233,12 @@ if '    timeout 120 claude' in trigger or '    timeout 90 claude' in helpers:
     errors.append('eval scripts still call GNU timeout directly')
 if '--output-format stream-json' in trigger and '--verbose' not in trigger:
     errors.append('trigger eval uses stream-json without --verbose')
-if 'PUA_CONFIG="$EVAL_PUA_CONFIG" run_with_timeout 120 claude' not in trigger:
+if not re.search(r'PUA_CONFIG="\$EVAL_PUA_CONFIG"[^\n]*run_with_timeout 120 claude', trigger):
     errors.append('trigger eval must use isolated PUA_CONFIG to avoid user ~/.pua/config.json')
-if 'observable PUA behavior as triggered' not in trigger:
-    errors.append('trigger eval must accept observable PUA behavior fallback to reduce Skill-tool flake')
+if 'successful_skill_invocations' not in (root / 'evals/inspect-claude-evidence.py').read_text() or '--skill pua' not in trigger:
+    errors.append('trigger eval must use linked native Skill evidence, not raw keyword fallback')
+if 'run_status' not in trigger or '</dev/null' not in trigger:
+    errors.append('trigger eval must preserve process status and close stdin')
 if 'EVAL_WORKSPACE="$RESULTS_DIR/workspace"' not in trigger or 'cd "$EVAL_WORKSPACE"' not in trigger:
     errors.append('trigger eval must run in a neutral workspace, not the pua plugin repo')
 if 'PUA_CONFIG="$eval_config" run_with_timeout 90 claude' not in helpers:

@@ -119,8 +119,8 @@ assert_absent '^binding[[:space:]]*=[[:space:]]*"(UPLOADS|DB)"' "no R2/D1 bindin
 # ── 6. Positive control — local feedback must still work ───────────────────
 # Without this, deleting stop-feedback.sh entirely would make every gate above
 # pass while silently dropping a feature the user asked to keep.
-assert_grep 'feedback\.jsonl'  hooks/stop-feedback.sh  "local feedback record still written"
-assert_grep 'AskUserQuestion'  hooks/stop-feedback.sh  "feedback prompt still asks the user"
+assert_grep 'feedback\.jsonl'  commands/survey.md  "opt-in local feedback record remains available"
+assert_grep 'AskUserQuestion'  commands/survey.md  "explicit feedback command still asks the user"
 
 echo "========================="
 echo "Passed: $PASS"

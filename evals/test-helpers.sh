@@ -3,6 +3,7 @@
 # Source this file in test scripts: source "$(dirname "$0")/test-helpers.sh"
 
 PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+EVIDENCE_INSPECTOR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/inspect-claude-evidence.py"
 
 # Portable timeout wrapper. macOS does not ship GNU `timeout`; Homebrew may
 # provide `gtimeout`, and Perl is available by default on macOS/Linux.
@@ -30,12 +31,18 @@ run_pua() {
     outfile=$(mktemp)
     eval_config=$(mktemp)
     printf '%s\n' '{"always_on":true,"feedback_frequency":0}' > "$eval_config"
+    local run_status=0
     PUA_CONFIG="$eval_config" run_with_timeout 90 claude -p "$prompt" \
         --plugin-dir "$PLUGIN_DIR" \
         --dangerously-skip-permissions \
         --max-turns "$max_turns" \
         --output-format stream-json \
-        --verbose 2>/dev/null > "$outfile"
+        --verbose </dev/null 2>"${outfile}.stderr" > "$outfile" || run_status=$?
+    rm -f "$eval_config"
+    if [ "$run_status" -ne 0 ] || ! python3 "$EVIDENCE_INSPECTOR" "$outfile" --terminal-success; then
+        echo "Claude evaluation did not complete successfully; evidence: $outfile" >&2
+        return 1
+    fi
     echo "$outfile"
 }
 
@@ -43,7 +50,7 @@ assert_skill_triggered() {
     local file="$1"
     local skill="$2"
     local label="${3:-$skill}"
-    if grep -q "\"$skill\"" "$file" 2>/dev/null; then
+    if python3 "$EVIDENCE_INSPECTOR" "$file" --skill "$skill"; then
         echo "  ✅ PASS: $label triggered"
         return 0
     else
@@ -56,7 +63,11 @@ assert_skill_not_triggered() {
     local file="$1"
     local skill="$2"
     local label="${3:-$skill}"
-    if grep -q "\"$skill\"" "$file" 2>/dev/null; then
+    if ! python3 "$EVIDENCE_INSPECTOR" "$file" --terminal-success; then
+        echo "  ❌ FAIL: $label has no successful terminal result"
+        return 1
+    fi
+    if python3 "$EVIDENCE_INSPECTOR" "$file" --skill "$skill"; then
         echo "  ❌ FAIL: $label triggered (should not)"
         return 1
     else
@@ -69,7 +80,7 @@ assert_contains() {
     local file="$1"
     local pattern="$2"
     local label="${3:-pattern check}"
-    if grep -qE "$pattern" "$file" 2>/dev/null; then
+    if python3 "$EVIDENCE_INSPECTOR" "$file" --contains "$pattern"; then
         echo "  ✅ PASS: $label"
         return 0
     else
@@ -82,7 +93,11 @@ assert_not_contains() {
     local file="$1"
     local pattern="$2"
     local label="${3:-pattern check}"
-    if grep -qE "$pattern" "$file" 2>/dev/null; then
+    if ! python3 "$EVIDENCE_INSPECTOR" "$file" --terminal-success; then
+        echo "  ❌ FAIL: $label has no successful terminal result"
+        return 1
+    fi
+    if python3 "$EVIDENCE_INSPECTOR" "$file" --contains "$pattern"; then
         echo "  ❌ FAIL: $label (found: $pattern)"
         return 1
     else
@@ -94,7 +109,7 @@ assert_not_contains() {
 count_matches() {
     local file="$1"
     local pattern="$2"
-    grep -oE "$pattern" "$file" 2>/dev/null | wc -l | tr -d ' '
+    python3 "$EVIDENCE_INSPECTOR" "$file" --count "$pattern"
 }
 
 export -f run_with_timeout run_pua assert_skill_triggered assert_skill_not_triggered assert_contains assert_not_contains count_matches

@@ -5,7 +5,7 @@ argument-hint: “[case|set-default]”
 
 启用 **📌 钉内/钉外味**。
 
-先用 Read 工具读取（用 Glob 搜 `**/pua-skills/skills/pua/references/methodology-ding.md` 定位插件目录）：
+先用 Read（文件读取）工具读取下列文件；相对路径以宿主提供的 `CLAUDE_PLUGIN_ROOT`（插件根目录）或本命令真实安装位置确定的插件根为准，不按克隆目录名全盘搜索：
 
 1. `skills/pua/references/methodology-ding.md`（方法论 + 七条执行规则 + 场景路由）
 2. `skills/pua/references/ding-reminders.md`（25 条原文梗提醒库）

@@ -26,7 +26,7 @@ assert_grep '思维固化|拒绝成长|fixed thinking|LITE|SLITE' skills/pua/SKI
 assert_grep '14 Corporate Flavors|14 种大厂|14種の大企業' README.md "README English count updated to 14"
 assert_grep '14 种大厂' README.zh-CN.md "README Chinese count updated to 14"
 assert_grep '14種の大企業' README.ja.md "README Japanese count updated to 14"
-assert_grep '14 种味道|14 corporate flavors|14 flavours|14 flavors' commands/flavor.md "flavor command count updated"
+assert_grep '15 种味道|15 workplace flavors|15 flavours|15 flavors' commands/flavor.md "flavor selector includes 14 corporate flavors plus Ding"
 assert_grep '14 corporate methodologies|14 种企业方法论|14の企業メソドロジー' landing/src/i18n.ts "landing copy count updated"
 
 echo "=============================="

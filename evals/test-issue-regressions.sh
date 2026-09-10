@@ -73,10 +73,13 @@ fi
 # Data collection was removed. The endpoints that used to need abuse limits and
 # authentication no longer exist, so those gates moved to reverse assertions in
 # evals/test-no-telemetry.sh. What remains checkable here is that the Stop hook
-# stayed local: it may only append a rating line, never transmit one.
+# only gives a non-blocking local reminder; explicit survey records voluntary ratings.
 assert_not_grep 'pua-skill\.pages\.dev|agentguard\.workers\.dev' hooks/stop-feedback.sh "stop-feedback references no collection host"
 assert_not_grep 'data-binary|Upload-Consent' hooks/stop-feedback.sh "stop-feedback carries no upload payload flags"
-assert_grep 'feedback\.jsonl' hooks/stop-feedback.sh "stop-feedback still records the rating locally"
+assert_grep 'systemMessage' hooks/stop-feedback.sh "Stop produces a documented non-blocking user notice"
+assert_not_grep '>>.*feedback\.jsonl|decision.*block' hooks/stop-feedback.sh "Stop never appends a rating or blocks for feedback"
+assert_grep 'feedback\.jsonl' commands/survey.md "explicit quick survey retains local rating support"
+assert_grep '跳过或未作答时不写任何评分文件' commands/survey.md "skipped/unanswered survey does not fabricate a rating"
 
 echo "==========================================="
 echo "Passed: $PASS"

@@ -9,15 +9,15 @@ argument-hint: "[p7|p9|p10|pro|yes|mama|loop|on|off|offline|kpi|survey|flavor|di
 
 **不要用 Skill tool 加载 `pua:pua` 或 `pua`**——会导致循环加载本 router。正确做法：
 
-- **核心 PUA skill**（无参数/任务描述）：用 Read 工具直接读取本插件目录下的 `skills/pua/SKILL.md`，然后按其中的行为协议执行。同时读取 `skills/pua/references/display-protocol.md` 获取面板格式。
+- **核心 PUA skill**（无参数/任务描述）：用 Read 工具直接读取本插件目录下的 `skills/pua/SKILL.md`，然后按其中的行为协议执行。需要面板时再读取 `skills/pua/references/display-protocol.md` 获取格式。
 - **子 skill**（p7/p9/p10/pro/yes/mama/pua-loop/shot/pua-en/pua-ja）：用 Read 工具读取 `skills/<name>/SKILL.md`。
 - **轻量命令**（again/done-check/evidence/ding/flavor/on/off/kpi/survey 等）：你已经在读本文件了，直接执行下方对应路由的指令。
 
-找到本插件目录的方法：用 Glob 搜索 `**/pua-skills/skills/pua/SKILL.md`，取其父目录。
+插件根目录以本次宿主提供的 `CLAUDE_PLUGIN_ROOT`（插件根目录）或本命令的真实安装位置为准；若命令位于 `<插件根>/commands/pua.md`，根目录是 `commands` 的上一级，不是 `skills/pua` 的父目录。下文的 `skills/...` 与 `commands/...` 都相对该根目录，读取时使用解析后的绝对路径。不假定克隆文件夹名，不全盘 Glob（文件匹配）搜索，不递归加载本 router（路由命令）。
 
 ## 参数路由
 
-- **无参数** 或任务描述 → 用 Read 读取 `skills/pua/SKILL.md` + `skills/pua/references/display-protocol.md`，按其行为协议执行（默认使用已配置味道；未配置时为阿里味）
+- **无参数** 或任务描述 → 用 Read 读取 `skills/pua/SKILL.md`，按其行为协议执行；需要面板时再读展示协议（默认使用已配置味道；未配置时为阿里味）
 - **p7** → Read `skills/p7/SKILL.md`（P7 骨干模式 — 方案驱动执行）
 - **p9** → Read `skills/p9/SKILL.md`（P9 Tech Lead — 写 Prompt 管 P8 团队）
 - **p10** → Read `skills/p10/SKILL.md`（P10 CTO — 定战略管 P9）

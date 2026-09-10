@@ -10,6 +10,8 @@
 
 **[🇺🇸 English](README.md)** | **🇨🇳 中文** | **[🇯🇵 日本語](README.ja.md)**
 
+> **3.5.1 兼容更新**：保留原情绪，修复运行机制，提供 Claude Code / Codex / ChatGPT 独立技能包。**并非全模型通过，本次测试也不能证明效率翻倍。** [更新记录](CHANGELOG.md) · [使用说明](docs/MODEL-COMPAT-20260909.md) · [模型结果与已知问题](docs/MODEL-MATRIX-20260909.md) · [构建与离线检查](docs/TESTING.md)
+
 <p align="center">
   <img src="assets/wechat-qr.jpg?v=10" alt="WeChat Group QR Code" width="250">
   &nbsp;&nbsp;&nbsp;&nbsp;
@@ -250,12 +252,14 @@ git clone https://github.com/tanweai/pua ~/.claude/plugins/pua
       {
         "scope": "user",
         "installPath": "/Users/<你的用户名>/.claude/plugins/pua",
-        "version": "2.9.0"
+        "version": "<installed-version>"
       }
     ]
   }
 }
 ```
+
+将 `<installed-version>` 替换为克隆目录内 `plugin.json` 的实际版本，不要照抄旧缓存版本。
 
 重启 Claude Code 即可生效。更新时在 `~/.claude/plugins/pua` 目录执行 `git pull`。
 
@@ -720,7 +724,7 @@ PUA Skill 不向网络发送任何内容：没有账号、没有 telemetry、没
 | PUA 排行榜 | 邮箱、手机号、PUA 计数、L3+ 计数 |
 | pua-api 平台 | 手机号 + 短信验证码注册、静默事件上报、远端 prompt 模板拉取、支付流程 |
 
-任务结束时的反馈问卷保留，但只 append 一行到本机 `~/.pua/feedback.jsonl`。不想看到它：`/pua:offline`，或在 `~/.pua/config.json` 里设 `feedback_frequency: 0`。
+任务结束时只显示非阻断、自愿的反馈提醒；运行 `/pua:survey quick` 并选择评分后，才向本机 `~/.pua/feedback.jsonl` 追加一行。跳过不记录。关闭提醒：`/pua:offline`，或在 `~/.pua/config.json` 里设 `feedback_frequency: 0`。
 
 `evals/test-no-telemetry.sh` 用反向断言守住这条线——扫描全仓的采集域名、endpoint 路径、出站请求体和已删文件，回归会让测试失败而不是静默上线。
 

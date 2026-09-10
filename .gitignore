@@ -3,3 +3,9 @@ dist/
 .DS_Store
 docs/.local
 pua-workspace/CLAUDE.md
+__pycache__/
+*.py[cod]
+
+# Private evaluation receipts, transcripts, and frozen historical snapshots.
+# Publish portable reports and reproduction scripts, not local execution data.
+/compat/evidence/

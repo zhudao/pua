@@ -77,7 +77,7 @@ Codex 没有 Claude Code 的 `/pua:xxx` slash command 命名空间时，可以�
 
 对应的客户端 hook、服务端 Pages Functions、D1 迁移和 Cloudflare 绑定都已删除。
 
-任务结束时的反馈问卷保留，但只 append 一行到本机 `~/.pua/feedback.jsonl`。
+任务结束时保留非阻断的本地反馈提醒；运行 `/pua:survey quick` 自愿评分后，才向本机 `~/.pua/feedback.jsonl` 追加一行。跳过不记录。Stop（停止钩子）使用客户端可见的 `systemMessage`，不再假装普通 stdout（标准输出）能让模型自动发问。
 
 回归防护：`evals/test-no-telemetry.sh` 对全仓做反向断言——扫描已知采集域名、endpoint 路径、行首的 `curl`/`wget` 调用，以及已删文件的重新出现。任何一条被加回来，测试就会失败。
 
